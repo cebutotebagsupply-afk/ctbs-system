@@ -1,57 +1,66 @@
 // api/createOrder.js
 
 export default async function handler(req, res) {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
+  if (req.method !== "POST") {
+    return res.status(405).json({ error: "Method not allowed" });
   }
 
   try {
     const { summary, designFileUrl, customerName } = req.body || {};
 
     if (!summary) {
-      return res.status(400).json({ error: 'Missing order summary' });
+      return res.status(400).json({ error: "Missing order summary" });
     }
 
+    const nameToUse =
+      (customerName && customerName.trim()) || "Kiosk Order";
+
     const properties = {
-      'Customer Name': {
+      // 🔹 REQUIRED title property
+      "Customer Name": {
         title: [
           {
-            type: 'text',
-            text: { content: (customerName || 'Untitled Order').slice(0, 1900) },
+            type: "text",
+            text: { content: nameToUse },
           },
         ],
       },
-      'Order Summary': {
+
+      // 🔹 Order summary (rich text)
+      "Order Summary": {
         rich_text: [
           {
-            type: 'text',
+            type: "text",
             text: { content: summary.slice(0, 1900) },
           },
         ],
       },
+
+      // 🔹 Status (status type, not select)
       Status: {
-        status: { name: 'New' }, // must match your Notion Status option
+        status: { name: "New" }, // must match your Status option
       },
     };
 
-    if (designFileUrl && /^https?:\/\//i.test(designFileUrl)) {
-      properties['Design File'] = {
+    // 🔹 Optional design file if you start passing a URL
+    if (designFileUrl) {
+      properties["Design File"] = {
         files: [
           {
-            type: 'external',
-            name: 'Design',
+            type: "external",
+            name: "Design",
             external: { url: designFileUrl },
           },
         ],
       };
     }
 
-    const notionResponse = await fetch('https://api.notion.com/v1/pages', {
-      method: 'POST',
+    const notionResponse = await fetch("https://api.notion.com/v1/pages", {
+      method: "POST",
       headers: {
         Authorization: `Bearer ${process.env.NOTION_API_KEY}`,
-        'Content-Type': 'application/json',
-        'Notion-Version': '2022-06-28',
+        "Content-Type": "application/json",
+        "Notion-Version": "2022-06-28",
       },
       body: JSON.stringify({
         parent: { database_id: process.env.NOTION_DB_ID },
@@ -60,16 +69,10 @@ export default async function handler(req, res) {
     });
 
     if (!notionResponse.ok) {
-      const detailText = await notionResponse.text();
-      let detail;
-      try {
-        detail = JSON.parse(detailText);
-      } catch (e) {
-        detail = detailText;
-      }
-      console.error('Notion error:', detail);
+      const detail = await notionResponse.text();
+      console.error("Notion error:", detail);
       return res.status(notionResponse.status).json({
-        error: 'Notion API error',
+        error: "Notion API error",
         status: notionResponse.status,
         detail,
       });
@@ -77,7 +80,7 @@ export default async function handler(req, res) {
 
     return res.status(200).json({ success: true });
   } catch (err) {
-    console.error('Server error:', err);
-    return res.status(500).json({ error: 'Server error' });
+    console.error("Server error:", err);
+    return res.status(500).json({ error: "Server error" });
   }
 }

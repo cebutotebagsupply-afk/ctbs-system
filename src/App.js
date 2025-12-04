@@ -229,7 +229,8 @@ export default function CTBSAdminDashboard() {
 
       const summary = buildOrderSummary();
       const designFiles = cart.map((item) => item.designFile?.data).filter(Boolean);
-      const designFileUrl = designFiles[0] || '';
+      const designFileUrl =
+        designFiles.find((url) => typeof url === 'string' && url.startsWith('http')) || '';
 
       const response = await fetch('/api/createOrder', {
         method: 'POST',
@@ -241,12 +242,25 @@ export default function CTBSAdminDashboard() {
         }),
       });
 
-      const data = await response.json().catch(() => ({}));
+      let data = {};
+      try {
+        data = await response.json();
+      } catch (e) {
+        data = {};
+      }
 
       if (!response.ok) {
-        console.error('Notion createOrder error:', data);
+        console.error('Notion createOrder error:', {
+          status: response.status,
+          statusText: response.statusText,
+          body: data,
+        });
+        const detail =
+          typeof data === 'string'
+            ? data
+            : data?.detail || data?.error || data?.message || 'Unknown error';
         alert(
-          'Something went wrong sending your order to our system. Please try again.'
+          `Something went wrong sending your order to our system. ${detail}`
         );
         return;
       }
