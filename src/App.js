@@ -193,6 +193,7 @@ export default function CTBSAdminDashboard() {
   const [checkoutErrors, setCheckoutErrors] = useState({});
   const [showGreeting, setShowGreeting] = useState(true);
   const [isGreetingClosing, setIsGreetingClosing] = useState(false);
+  const [isSubmittingOrder, setIsSubmittingOrder] = useState(false);
 
   const handleStartKiosk = () => {
     setIsGreetingClosing(true);
@@ -936,6 +937,92 @@ export default function CTBSAdminDashboard() {
       setShowCart(true);
     }
     fireConfetti();
+  };
+
+  const getShippingLabel = () => {
+    const match = shippingOptions.find((opt) => opt.id === checkoutForm.shippingOption);
+    return match ? match.name : 'Not specified';
+  };
+
+  const buildOrderSummary = () => {
+    const lines = [];
+    lines.push(`Customer: ${checkoutForm.name}`);
+    lines.push(`Contact: ${checkoutForm.contactNumber || 'N/A'}`);
+    lines.push(`Address: ${checkoutForm.address || 'N/A'}`);
+    lines.push(`Shipping: ${getShippingLabel()}`);
+    lines.push('');
+    lines.push('Items:');
+    cart.forEach((item, idx) => {
+      const detailParts = [];
+      if (item.variation) detailParts.push(item.variation);
+      if (item.color) detailParts.push(`Color: ${item.color}`);
+      if (item.size) detailParts.push(`Size: ${item.size}`);
+      if (item.printMethod) detailParts.push(`Print: ${item.printMethod}${item.printSize ? ` (${item.printSize})` : ''}`);
+      if (item.addOns?.length) detailParts.push(`Add-ons: ${item.addOns.join(', ')}`);
+      if (item.specialInstructions) detailParts.push(`Notes: ${item.specialInstructions}`);
+      lines.push(`${idx + 1}. ${item.product} x${item.quantity}${detailParts.length ? ` — ${detailParts.join(' · ')}` : ''}`);
+    });
+    return lines.join('\n').slice(0, 1800);
+  };
+
+  const submitOrderToNotion = async () => {
+    const errors = {};
+    if (shippingOptions.length > 0 && !checkoutForm.shippingOption) {
+      errors.shippingOption = 'Please choose a shipping option.';
+    }
+    if (!checkoutForm.name.trim()) {
+      errors.name = 'Full name is required.';
+    }
+    if (!checkoutForm.contactNumber.trim()) {
+      errors.contactNumber = 'Contact number is required.';
+    }
+    if (!checkoutForm.address.trim()) {
+      errors.address = 'Delivery address is required.';
+    }
+    setCheckoutErrors(errors);
+    if (Object.keys(errors).length > 0) {
+      return;
+    }
+
+    const summary = buildOrderSummary();
+    const designFiles = cart
+      .map((item) => item.designFile?.data)
+      .filter(Boolean);
+    const designFileUrl = designFiles[0] || '';
+
+    setIsSubmittingOrder(true);
+    try {
+      const res = await fetch('/api/createOrder', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          summary,
+          designFileUrl,
+          customerName: checkoutForm.name,
+        }),
+      });
+      if (!res.ok) {
+        const detail = await res.text();
+        alert(`Failed to submit to Notion. ${detail || ''}`);
+        return;
+      }
+      alert('Order submitted successfully! We will contact you shortly.');
+      setShowCheckout(false);
+      setCart([]);
+      setCheckoutForm({
+        name: '',
+        address: '',
+        shippingOption: '',
+        contactNumber: '',
+      });
+      setCheckoutErrors({});
+      setCheckoutStep('shipping');
+    } catch (err) {
+      console.error('Submit error', err);
+      alert('Failed to submit order. Please try again.');
+    } finally {
+      setIsSubmittingOrder(false);
+    }
   };
 
   const removeFromCart = (itemId) => {
@@ -2164,40 +2251,11 @@ export default function CTBSAdminDashboard() {
                 )}
                 {checkoutStep === 'details' && (
                   <button
-                    onClick={() => {
-                      const errors = {};
-                      if (shippingOptions.length > 0 && !checkoutForm.shippingOption) {
-                        errors.shippingOption = 'Please choose a shipping option.';
-                      }
-                      if (!checkoutForm.name.trim()) {
-                        errors.name = 'Full name is required.';
-                      }
-                      if (!checkoutForm.contactNumber.trim()) {
-                        errors.contactNumber = 'Contact number is required.';
-                      }
-                      if (!checkoutForm.address.trim()) {
-                        errors.address = 'Delivery address is required.';
-                      }
-                      setCheckoutErrors(errors);
-                      if (Object.keys(errors).length > 0) {
-                        return;
-                      }
-                      alert(
-                        'Order submitted successfully! We will contact you shortly.'
-                      );
-                      setShowCheckout(false);
-                      setCart([]);
-                      setCheckoutForm({
-                        name: '',
-                        address: '',
-                        shippingOption: '',
-                        contactNumber: '',
-                      });
-                      setCheckoutErrors({});
-                    }}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
+                    onClick={submitOrderToNotion}
+                    disabled={isSubmittingOrder}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm disabled:opacity-60 disabled:cursor-not-allowed"
                   >
-                    Submit Order
+                    {isSubmittingOrder ? 'Submitting...' : 'Submit Order'}
                   </button>
                 )}
               </div>
