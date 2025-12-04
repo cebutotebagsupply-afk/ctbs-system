@@ -30,12 +30,20 @@ export default async function handler(req, res) {
           },
         ],
       },
+      'Customer Name': {
+        rich_text: [
+          {
+            type: 'text',
+            text: { content: (customerName || '').slice(0, 1900) },
+          },
+        ],
+      },
       Status: {
         status: { name: 'New' }, // must match your Notion Status option
       },
     };
 
-    if (designFileUrl) {
+    if (designFileUrl && /^https?:\/\//i.test(designFileUrl)) {
       properties['Design File'] = {
         files: [
           {
