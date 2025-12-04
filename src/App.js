@@ -2060,8 +2060,8 @@ export default function CTBSAdminDashboard() {
         {showCustomizeModal && renderKioskCustomizeModal()}
 
         {showConfirmation && currentView === 'kiosk' && (
-          <div className="fixed inset-0 bg-[#0167FF] flex items-center justify-center z-50 px-6 text-center text-white">
-            <div className="space-y-4 max-w-md" style={{ animation: 'fadeIn 0.35s ease' }}>
+          <div className="fixed inset-0 bg-[#0167FF] flex items-center justify-center z-50 text-center text-white">
+            <div className="w-full max-w-md space-y-4" style={{ animation: 'fadeIn 0.35s ease' }}>
               <img
                 src="https://media.giphy.com/media/7yORCExjS87Jk10xSU/giphy.gif?cid=790b7611mzhatd71vqspu3l37xq9v7m4zgp9yomlbt3ank67&ep=v1_gifs_search&rid=giphy.gif&ct=g"
                 alt="Celebration"
