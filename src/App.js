@@ -231,9 +231,30 @@ export default function CTBSAdminDashboard() {
       setIsSubmittingOrder(true);
 
       const summary = buildOrderSummary();
-      const designFiles = cart.map((item) => item.designFile?.data).filter(Boolean);
-      const designFileUrl =
-        designFiles.find((url) => typeof url === 'string' && url.startsWith('http')) || '';
+      const designFiles = cart.map((item) => item.designFile).filter(Boolean);
+      let designFileUrl = '';
+
+      if (designFiles.length > 0 && designFiles[0]?.data) {
+        try {
+          const dataUrl = designFiles[0].data;
+          const blob = await (await fetch(dataUrl)).blob();
+          const formData = new FormData();
+          formData.append('file', blob, designFiles[0].name || 'design');
+          formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
+          const uploadRes = await fetch(
+            `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/auto/upload`,
+            { method: 'POST', body: formData }
+          );
+          const uploadJson = await uploadRes.json();
+          if (uploadRes.ok && uploadJson.secure_url) {
+            designFileUrl = uploadJson.secure_url;
+          } else {
+            console.error('Cloudinary design upload failed:', uploadJson);
+          }
+        } catch (e) {
+          console.error('Design upload error:', e);
+        }
+      }
 
       const response = await fetch('/api/createOrder', {
         method: 'POST',
@@ -1057,7 +1078,7 @@ export default function CTBSAdminDashboard() {
     const shipping = shippingOptions.find((opt) => opt.id === checkoutForm.shippingOption);
     const lines = [];
 
-    lines.push('CUSTOMER:');
+    lines.push('CUSTOMER DETAILS:');
     lines.push(`• Name: ${checkoutForm.name || 'N/A'}`);
     lines.push(`• Contact: ${checkoutForm.contactNumber || 'N/A'}`);
     lines.push(`• Address: ${checkoutForm.address || 'N/A'}`);
@@ -1067,24 +1088,37 @@ export default function CTBSAdminDashboard() {
       }`
     );
 
-    lines.push('');
-    lines.push('ITEMS:');
     if (cart.length === 0) {
+      lines.push('');
+      lines.push('ITEMS:');
       lines.push('• No items in cart');
-    } else {
-      cart.forEach((item, idx) => {
-        const detailParts = [];
-        if (item.variation) detailParts.push(item.variation);
-        if (item.color) detailParts.push(`Color: ${item.color}`);
-        if (item.size) detailParts.push(`Size: ${item.size}`);
-        if (item.printMethod) detailParts.push(`Print: ${item.printMethod}${item.printSize ? ` (${item.printSize})` : ''}`);
-        if (item.addOns?.length) detailParts.push(`Add-ons: ${item.addOns.join(', ')}`);
-        if (item.designFile?.name) detailParts.push(`Design: ${item.designFile.name}`);
-        if (item.specialInstructions) detailParts.push(`Notes: ${item.specialInstructions}`);
+      return lines.join('\n');
+    }
 
-        const base = `${idx + 1}. ${item.product || 'Product'} x${item.quantity || 1}`;
-        lines.push(detailParts.length ? `${base} — ${detailParts.join(' · ')}` : base);
-      });
+    const specialNotes = [];
+
+    cart.forEach((item, idx) => {
+      lines.push('');
+      lines.push(`ITEM ${idx + 1}`);
+      if (item.variation) lines.push(`• Fabric: ${item.variation}`);
+      if (item.color) lines.push(`• Color: ${item.color}`);
+      if (item.size) lines.push(`• Size: ${item.size}`);
+      if (item.printMethod)
+        lines.push(
+          `• Print method: ${item.printMethod}${item.printSize ? ` (${item.printSize})` : ''}`
+        );
+      if (item.addOns?.length) lines.push(`• Add-ons: ${item.addOns.join(', ')}`);
+      lines.push(`• Quantity: ${item.quantity || 1}`);
+      if (item.designFile?.name) lines.push(`• Design file: ${item.designFile.name}`);
+      if (item.specialInstructions) {
+        specialNotes.push(`• Item ${idx + 1}: ${item.specialInstructions}`);
+      }
+    });
+
+    if (specialNotes.length) {
+      lines.push('');
+      lines.push('SPECIAL INSTRUCTIONS:');
+      specialNotes.forEach((note) => lines.push(note));
     }
 
     return lines.join('\n');
