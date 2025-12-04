@@ -2065,9 +2065,11 @@ export default function CTBSAdminDashboard() {
               <img
                 src="https://media.giphy.com/media/7yORCExjS87Jk10xSU/giphy.gif?cid=790b7611mzhatd71vqspu3l37xq9v7m4zgp9yomlbt3ank67&ep=v1_gifs_search&rid=giphy.gif&ct=g"
                 alt="Celebration"
-                className="w-40 h-40 mx-auto rounded-full object-cover shadow-lg border-4 border-white/50"
+                className="w-full h-64 object-cover"
               />
-              <h2 className="text-2xl font-bold">Success! We received your order</h2>
+              <h2 className="text-2xl font-bold">
+                Success! <br /> We received your order
+              </h2>
               <p className="text-lg text-white/90">
                 We are excited to celebrate with you 💙
               </p>
