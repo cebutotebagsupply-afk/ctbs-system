@@ -23,7 +23,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { summary, designFileUrl, customerName } = req.body;
+    const { summary, designFile, customerName } = req.body;
 
     // Validate required fields
     if (!customerName || !customerName.trim()) {
@@ -64,15 +64,21 @@ export default async function handler(req, res) {
       },
     };
 
-    // Add Design File if URL is provided
-    if (designFileUrl && designFileUrl.trim()) {
+    // Add Design File if provided (stored as data URL so Notion hosts it directly)
+    if (designFile?.data) {
+      const base64Data = designFile.data.split(',')[1] || '';
+      const estimatedBytes = Math.ceil((base64Data.length * 3) / 4);
+      if (estimatedBytes > 5 * 1024 * 1024) {
+        return res.status(400).json({ error: 'Design file exceeds 5MB limit' });
+      }
+
       properties['Design File'] = {
         files: [
           {
             type: 'external',
-            name: 'Design File',
+            name: designFile.name || 'Design File',
             external: {
-              url: designFileUrl.trim(),
+              url: designFile.data,
             },
           },
         ],

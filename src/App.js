@@ -181,6 +181,10 @@ export default function CTBSAdminDashboard() {
   const [isSubmittingOrder, setIsSubmittingOrder] = useState(false);
   const [isLoadingProducts, setIsLoadingProducts] = useState(true);
   const [isSavingProducts, setIsSavingProducts] = useState(false);
+  const [stepTransition, setStepTransition] = useState('in');
+  const [isStepTransitioning, setIsStepTransitioning] = useState(false);
+  const [checkoutStepAnimation, setCheckoutStepAnimation] = useState('in');
+  const [isCheckoutTransitioning, setIsCheckoutTransitioning] = useState(false);
 
   // Media Library states
   const [showMediaLibrary, setShowMediaLibrary] = useState(false);
@@ -239,39 +243,21 @@ export default function CTBSAdminDashboard() {
 
       const summary = buildOrderSummary();
       const designFiles = cart
-        .map((item) => (item.designFile?.data ? { data: item.designFile.data, name: item.designFile.name } : null))
+        .map((item) =>
+          item.designFile?.data
+            ? { data: item.designFile.data, name: item.designFile.name, type: item.designFile.type }
+            : null
+        )
         .filter(Boolean);
 
-      let designFileUrl = '';
-
-      if (designFiles.length > 0) {
-        try {
-          const dataUrl = designFiles[0].data;
-          const blob = await (await fetch(dataUrl)).blob();
-          const formData = new FormData();
-          formData.append('file', blob, designFiles[0].name || 'design');
-          formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
-          const uploadRes = await fetch(
-            `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/auto/upload`,
-            { method: 'POST', body: formData }
-          );
-          const uploadJson = await uploadRes.json();
-          if (uploadRes.ok && uploadJson.secure_url) {
-            designFileUrl = uploadJson.secure_url;
-          } else {
-            console.error('Cloudinary design upload failed:', uploadJson);
-          }
-        } catch (e) {
-          console.error('Design upload error:', e);
-        }
-      }
+      const designFile = designFiles[0] || null;
 
       const response = await fetch('/api/createOrder', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           summary,
-          designFileUrl,
+          designFile,
           customerName: checkoutForm.name,
         }),
       });
@@ -322,6 +308,17 @@ export default function CTBSAdminDashboard() {
     }
   };
 
+  const changeCheckoutStep = (targetStep) => {
+    if (isCheckoutTransitioning) return;
+    setIsCheckoutTransitioning(true);
+    setCheckoutStepAnimation('out');
+    setTimeout(() => {
+      setCheckoutStep(targetStep);
+      setCheckoutStepAnimation('in');
+      setIsCheckoutTransitioning(false);
+    }, 160);
+  };
+
   // Close modals via Escape key
   useEffect(() => {
     const handleEsc = (e) => {
@@ -340,6 +337,13 @@ export default function CTBSAdminDashboard() {
     document.addEventListener('keydown', handleEsc);
     return () => document.removeEventListener('keydown', handleEsc);
   }, [showProductModal, showCustomizeModal, showCart, showCheckout, deleteConfirmProduct]);
+
+  useEffect(() => {
+    if (showCheckout) {
+      setCheckoutStepAnimation('in');
+      setIsCheckoutTransitioning(false);
+    }
+  }, [showCheckout]);
 
   // Track if initial load from localStorage is complete
   const [isInitialized, setIsInitialized] = useState(false);
@@ -1024,7 +1028,7 @@ export default function CTBSAdminDashboard() {
       printMethod: cartItem?.selections?.printMethod ?? null,
       printSize: cartItem?.selections?.printSize ?? null,
       addOns: cartItem?.selections?.addOns ?? [],
-      quantity: cartItem?.selections?.quantity ?? 1,
+      quantity: normalizeQuantity(cartItem?.selections?.quantity ?? 1),
       designFile: cartItem?.selections?.designFile ?? null,
       specialInstructions: cartItem?.selections?.specialInstructions ?? '',
     };
@@ -1034,7 +1038,14 @@ export default function CTBSAdminDashboard() {
     const initialVariation = getVariationFromSelection(product, initialSelections);
     setKioskStep(getFirstAvailableStep(product, initialVariation));
     setShowStepWarning(false);
+    setStepTransition('in');
+    setIsStepTransitioning(false);
     setShowCustomizeModal(true);
+  };
+
+  const normalizeQuantity = (value) => {
+    const parsed = parseInt(value, 10);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : 1;
   };
 
   const handleDesignFileUpload = (e) => {
@@ -1043,6 +1054,11 @@ export default function CTBSAdminDashboard() {
       const validTypes = ['application/pdf', 'image/png', 'image/jpeg'];
       if (!validTypes.includes(file.type)) {
         alert('Please upload a PDF, PNG, or JPEG file');
+        return;
+      }
+      if (file.size > 5 * 1024 * 1024) {
+        alert('File is too large. Please upload a file up to 5MB.');
+        e.target.value = '';
         return;
       }
       const reader = new FileReader();
@@ -1083,6 +1099,7 @@ export default function CTBSAdminDashboard() {
         : null;
 
     const baseId = editingCartItemId || `cart-${Date.now()}`;
+    const normalizedQuantity = normalizeQuantity(kioskSelections.quantity);
     const cartItem = {
       id: baseId,
       productId: selectedProduct.id,
@@ -1103,7 +1120,7 @@ export default function CTBSAdminDashboard() {
       addOns: kioskSelections.addOns
         .map((idx) => selectedProduct.addOns[idx]?.name)
         .filter(Boolean),
-      quantity: kioskSelections.quantity,
+      quantity: normalizedQuantity,
       isCustomSize: kioskSelections.size === 'custom',
       designFile: kioskSelections.designFile,
       specialInstructions: kioskSelections.specialInstructions,
@@ -1115,7 +1132,7 @@ export default function CTBSAdminDashboard() {
         printMethod: kioskSelections.printMethod,
         printSize: kioskSelections.printSize,
         addOns: kioskSelections.addOns,
-        quantity: kioskSelections.quantity,
+        quantity: normalizedQuantity,
         designFile: kioskSelections.designFile,
         specialInstructions: kioskSelections.specialInstructions,
       },
@@ -1276,14 +1293,27 @@ export default function CTBSAdminDashboard() {
       if (isLastStep) {
         addToCart();
       } else if (nextStepIndex !== null) {
-        setKioskStep(nextStepIndex);
-        setShowStepWarning(false);
+        if (isStepTransitioning) return;
+        setIsStepTransitioning(true);
+        setStepTransition('out');
+        setTimeout(() => {
+          setKioskStep(nextStepIndex);
+          setShowStepWarning(false);
+          setStepTransition('in');
+          setIsStepTransitioning(false);
+        }, 160);
       }
     };
 
     const goPrev = () => {
-      if (prevStepIndex !== null) {
-        setKioskStep(prevStepIndex);
+      if (prevStepIndex !== null && !isStepTransitioning) {
+        setIsStepTransitioning(true);
+        setStepTransition('out');
+        setTimeout(() => {
+          setKioskStep(prevStepIndex);
+          setStepTransition('in');
+          setIsStepTransitioning(false);
+        }, 160);
       }
     };
 
@@ -1628,7 +1658,7 @@ export default function CTBSAdminDashboard() {
                         Click to upload design
                       </p>
                       <p className="text-xs text-gray-500">
-                        PDF, PNG, or JPEG (Max 10MB)
+                        PDF, PNG, or JPEG (Max 5MB)
                       </p>
                     </>
                   )}
@@ -1643,10 +1673,10 @@ export default function CTBSAdminDashboard() {
               <div className="flex items-center gap-4">
                 <button
                   onClick={() =>
-                    setKioskSelections({
-                      ...kioskSelections,
-                      quantity: Math.max(1, kioskSelections.quantity - 1),
-                    })
+                    setKioskSelections((prev) => ({
+                      ...prev,
+                      quantity: Math.max(1, normalizeQuantity(prev.quantity) - 1),
+                    }))
                   }
                   className="w-10 h-10 rounded-full border-2 border-gray-300 flex items-center justify-center hover:bg-gray-100 text-lg"
                 >
@@ -1657,19 +1687,35 @@ export default function CTBSAdminDashboard() {
                   min="1"
                   value={kioskSelections.quantity}
                   onChange={(e) =>
-                    setKioskSelections({
-                      ...kioskSelections,
-                      quantity: Math.max(1, parseInt(e.target.value) || 1),
-                    })
+                    {
+                      const value = e.target.value;
+                      if (value === '') {
+                        setKioskSelections({
+                          ...kioskSelections,
+                          quantity: '',
+                        });
+                        return;
+                      }
+                      setKioskSelections({
+                        ...kioskSelections,
+                        quantity: normalizeQuantity(value),
+                      });
+                    }
+                  }
+                  onBlur={() =>
+                    setKioskSelections((prev) => ({
+                      ...prev,
+                      quantity: normalizeQuantity(prev.quantity),
+                    }))
                   }
                   className="w-20 text-lg font-semibold text-center border-2 border-gray-300 rounded-lg px-2 py-1 focus:border-blue-500 focus:ring-0 outline-none"
                 />
                 <button
                   onClick={() =>
-                    setKioskSelections({
-                      ...kioskSelections,
-                      quantity: kioskSelections.quantity + 1,
-                    })
+                    setKioskSelections((prev) => ({
+                      ...prev,
+                      quantity: normalizeQuantity(prev.quantity) + 1,
+                    }))
                   }
                   className="w-10 h-10 rounded-full border-2 border-gray-300 flex items-center justify-center hover:bg-gray-100 text-lg"
                 >
@@ -1799,7 +1845,7 @@ export default function CTBSAdminDashboard() {
                 <div className="border-t border-blue-100" />
                 <div className="flex justify-between text-gray-700">
                   <span>Quantity</span>
-                  <span className="text-right">{kioskSelections.quantity}</span>
+                  <span className="text-right">{normalizeQuantity(kioskSelections.quantity)}</span>
                 </div>
                 <div className="border-t border-blue-100" />
                 <div className="flex justify-between text-gray-700">
@@ -1856,7 +1902,10 @@ export default function CTBSAdminDashboard() {
           <div
             key={`step-${kioskStep}`}
             className="p-6 overflow-y-auto space-y-6 step-panel transition-all duration-300 ease-out"
-            style={{ maxHeight: 'calc(90vh - 140px)', animation: 'fadeIn 0.25s ease' }}
+            style={{
+              maxHeight: 'calc(90vh - 140px)',
+              animation: stepTransition === 'in' ? 'fadeIn 0.25s ease' : 'fadeOut 0.2s ease forwards',
+            }}
           >
             {renderStepContent()}
           </div>
@@ -1922,15 +1971,10 @@ export default function CTBSAdminDashboard() {
             role="button"
             tabIndex={0}
           >
-            <div className="pointer-events-none mb-6" style={{ width: '180px', height: '180px' }}>
-              <lottie-player
-                src="https://lottie.host/embed/0c076777-15ea-4de6-a238-617f3485653f/IGTOlcslRg.lottie"
-                background="transparent"
-                speed="1"
-                loop
-                autoplay
-                style={{ width: '180px', height: '180px' }}
-              ></lottie-player>
+            <div className="pointer-events-none mb-6">
+              <div className="h-44 w-44 rounded-full bg-white/10 border border-white/20 flex items-center justify-center shadow-lg backdrop-blur">
+                <Package size={64} className="text-white/80" />
+              </div>
             </div>
             <div className="text-center space-y-2" style={{ animation: 'fadeIn 0.4s ease' }}>
               <p className="text-sm tracking-[0.2em] uppercase text-white/80">
@@ -1996,7 +2040,7 @@ export default function CTBSAdminDashboard() {
 
         <div className="px-4 py-8">
           <h2 className="text-center text-xl font-bold text-gray-800 mb-6">
-            Choose your product and let's start customizing it!
+            Pick and Customize!
           </h2>
           {isLoadingProducts ? (
             <div className="text-center py-12">
@@ -2060,16 +2104,14 @@ export default function CTBSAdminDashboard() {
         {showCustomizeModal && renderKioskCustomizeModal()}
 
         {showConfirmation && currentView === 'kiosk' && (
-          <div className="fixed inset-0 bg-[#0167FF] flex items-center justify-center z-50 text-center text-white">
-            <div className="w-full max-w-md space-y-4" style={{ animation: 'fadeIn 0.35s ease' }}>
+          <div className="fixed inset-0 bg-[#0167FF] flex items-center justify-center z-50 px-6 text-center text-white">
+            <div className="space-y-4 max-w-md" style={{ animation: 'fadeIn 0.35s ease' }}>
               <img
                 src="https://media.giphy.com/media/7yORCExjS87Jk10xSU/giphy.gif?cid=790b7611mzhatd71vqspu3l37xq9v7m4zgp9yomlbt3ank67&ep=v1_gifs_search&rid=giphy.gif&ct=g"
                 alt="Celebration"
-                className="w-full h-64 object-cover"
+                className="w-40 h-40 mx-auto rounded-full object-cover shadow-lg border-4 border-white/50"
               />
-              <h2 className="text-2xl font-bold">
-                Success! <br /> We received your order
-              </h2>
+              <h2 className="text-2xl font-bold">Success! We received your order</h2>
               <p className="text-lg text-white/90">
                 We are excited to celebrate with you 💙
               </p>
@@ -2225,7 +2267,10 @@ export default function CTBSAdminDashboard() {
                     onClick={() => {
                       setShowCart(false);
                       setCheckoutErrors({});
-                      setCheckoutStep(shippingOptions.length === 0 ? 'details' : 'shipping');
+                      const firstStep = shippingOptions.length === 0 ? 'details' : 'shipping';
+                      setCheckoutStep(firstStep);
+                      setCheckoutStepAnimation('in');
+                      setIsCheckoutTransitioning(false);
                       setShowCheckout(true);
                     }}
                     className="w-full py-3 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 transition-colors"
@@ -2274,7 +2319,12 @@ export default function CTBSAdminDashboard() {
                 <div
                   key={`checkout-${checkoutStep}`}
                   className="transition-all duration-300 ease-out"
-                  style={{ animation: 'fadeIn 0.25s ease' }}
+                  style={{
+                    animation:
+                      checkoutStepAnimation === 'in'
+                        ? 'fadeIn 0.25s ease'
+                        : 'fadeOut 0.2s ease forwards',
+                  }}
                 >
                   {checkoutStep === 'shipping' && (
                     <div className="space-y-3">
@@ -2330,9 +2380,6 @@ export default function CTBSAdminDashboard() {
                   {checkoutStep === 'details' && (
                     <>
                       <div className="space-y-4">
-                        <div className="flex items-center justify-between">
-                          <h3 className="text-sm font-semibold text-gray-800 uppercase tracking-wide">Customer Details</h3>
-                        </div>
                         <div className="space-y-4">
                           <div>
                             <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -2427,7 +2474,7 @@ export default function CTBSAdminDashboard() {
               <div className="border-t px-6 py-4 bg-gray-50 rounded-b-2xl flex gap-3 justify-end">
                 {checkoutStep === 'details' && (
                   <button
-                    onClick={() => setCheckoutStep('shipping')}
+                    onClick={() => changeCheckoutStep('shipping')}
                     className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-100 transition-colors text-sm"
                   >
                     Back
@@ -2442,7 +2489,7 @@ export default function CTBSAdminDashboard() {
                       }
                       setCheckoutErrors(errors);
                       if (Object.keys(errors).length > 0) return;
-                      setCheckoutStep('details');
+                      changeCheckoutStep('details');
                     }}
                     className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
                   >
@@ -3452,13 +3499,6 @@ export default function CTBSAdminDashboard() {
           >
             {isUploadingLogo ? 'Uploading logo…' : 'Upload logo'}
           </label>
-          <button
-            type="button"
-            onClick={() => openMediaLibrary('logo')}
-            className="mt-2 w-full text-center border border-white/30 rounded-lg px-4 py-3 text-sm font-medium cursor-pointer transition-colors hover:bg-white/10 flex items-center justify-center gap-2"
-          >
-            <Package size={16} /> Choose from Library
-          </button>
         </div>
       </aside>
 
@@ -3718,7 +3758,7 @@ export default function CTBSAdminDashboard() {
 
   return (
     <>
-      <style>{`* { font-family: Helvetica, Arial, sans-serif; } @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }`}</style>
+      <style>{`* { font-family: Helvetica, Arial, sans-serif; } @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } } @keyframes fadeOut { from { opacity: 1; transform: translateY(0); } to { opacity: 0; transform: translateY(6px); } }`}</style>
       {currentView === 'admin' ? renderAdmin() : renderKiosk()}
     </>
   );
