@@ -985,10 +985,8 @@ export default function CTBSAdminDashboard() {
     }
 
     const summary = buildOrderSummary();
-    const designFiles = cart
-      .map((item) => item.designFile?.data)
-      .filter(Boolean);
-    const designFileUrl = designFiles[0] || '';
+    const designFiles = cart.map((item) => item.designFile).filter(Boolean);
+    const designFile = designFiles[0];
 
     setIsSubmittingOrder(true);
     try {
@@ -997,7 +995,7 @@ export default function CTBSAdminDashboard() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           summary,
-          designFileUrl,
+          designFileUrl: designFile?.data || '',
           customerName: checkoutForm.name,
         }),
       });
