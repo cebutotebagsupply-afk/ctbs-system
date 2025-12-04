@@ -179,6 +179,8 @@ export default function CTBSAdminDashboard() {
   });
   const [shippingOptions, setShippingOptions] = useState(DEFAULT_SHIPPING_OPTIONS);
   const [isSubmittingOrder, setIsSubmittingOrder] = useState(false);
+  const [isLoadingProducts, setIsLoadingProducts] = useState(true);
+  const [isSavingProducts, setIsSavingProducts] = useState(false);
 
   const [productForm, setProductForm] = useState({
     name: '',
@@ -310,27 +312,36 @@ export default function CTBSAdminDashboard() {
   // Track if initial load from localStorage is complete
   const [isInitialized, setIsInitialized] = useState(false);
 
-  // Load data from localStorage when app starts
+  // Load data when app starts
   useEffect(() => {
     const savedLogo = localStorage.getItem('ctbs-logo');
-    const savedProducts = localStorage.getItem('ctbs-products');
     const savedShipping = localStorage.getItem('ctbs-shipping-options');
 
     if (savedLogo) setLogo(savedLogo);
-    if (savedProducts) {
+    
+    // Fetch products from JSONBin API
+    const fetchProducts = async () => {
       try {
-        const parsed = JSON.parse(savedProducts);
-        if (Array.isArray(parsed)) {
-          const normalizedProducts = parsed.map((p) => ({
+        setIsLoadingProducts(true);
+        const response = await fetch('/api/products');
+        const data = await response.json();
+        
+        if (response.ok && Array.isArray(data.products)) {
+          const normalizedProducts = data.products.map((p) => ({
             ...p,
             requiredSteps: p.requiredSteps || DEFAULT_REQUIRED_STEPS,
           }));
           setProducts(normalizedProducts);
         }
-      } catch (e) {
-        console.error('Failed to parse saved products:', e);
+      } catch (error) {
+        console.error('Failed to fetch products:', error);
+      } finally {
+        setIsLoadingProducts(false);
       }
-    }
+    };
+    
+    fetchProducts();
+
     if (savedShipping) {
       try {
         const parsedShipping = JSON.parse(savedShipping);
@@ -386,11 +397,29 @@ export default function CTBSAdminDashboard() {
     }
   }, [logo, isInitialized]);
 
-  // Save products whenever they change (only after initialization)
+  // Save products to JSONBin whenever they change (with debounce)
   useEffect(() => {
-    if (!isInitialized) return;
-    localStorage.setItem('ctbs-products', JSON.stringify(products));
-  }, [products, isInitialized]);
+    if (!isInitialized || isLoadingProducts) return;
+    
+    const saveProducts = async () => {
+      try {
+        setIsSavingProducts(true);
+        await fetch('/api/products', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ products }),
+        });
+      } catch (error) {
+        console.error('Failed to save products:', error);
+      } finally {
+        setIsSavingProducts(false);
+      }
+    };
+
+    // Debounce save by 500ms to avoid too many API calls
+    const timeoutId = setTimeout(saveProducts, 500);
+    return () => clearTimeout(timeoutId);
+  }, [products, isInitialized, isLoadingProducts]);
 
   // Save shipping options whenever they change (only after initialization)
   useEffect(() => {
@@ -1905,7 +1934,17 @@ export default function CTBSAdminDashboard() {
           <h2 className="text-center text-xl font-bold text-gray-800 mb-6">
             Choose your product and let's start customizing it!
           </h2>
-          {products.length === 0 ? (
+          {isLoadingProducts ? (
+            <div className="text-center py-12">
+              <Loader2
+                size={56}
+                className="mx-auto text-blue-500 mb-4 animate-spin"
+              />
+              <p className="text-lg text-gray-500">
+                Loading products...
+              </p>
+            </div>
+          ) : products.length === 0 ? (
             <div className="text-center py-12">
               <Package
                 size={56}
@@ -3166,7 +3205,14 @@ export default function CTBSAdminDashboard() {
       <div className="flex-1 flex flex-col h-screen max-h-screen">
         <div className="bg-white border-b px-10 py-6 flex justify-between items-center">
           <div>
-            <p className="text-sm text-gray-500">Admin Dashboard</p>
+            <div className="flex items-center gap-2">
+              <p className="text-sm text-gray-500">Admin Dashboard</p>
+              {isSavingProducts && (
+                <span className="text-xs text-blue-500 flex items-center gap-1">
+                  <Loader2 size={12} className="animate-spin" /> Saving...
+                </span>
+              )}
+            </div>
             <h1 className="text-3xl font-bold text-gray-800">
               {adminTab === 'shipping'
                 ? 'Shipping Settings'
@@ -3202,7 +3248,17 @@ export default function CTBSAdminDashboard() {
         <div className="flex-1 px-10 py-8 overflow-y-auto">
           {adminTab === 'products' && (
             <>
-              {products.length === 0 ? (
+              {isLoadingProducts ? (
+                <div className="bg-white rounded-lg border border-gray-200 p-12 text-center">
+                  <Loader2
+                    size={64}
+                    className="mx-auto text-blue-500 mb-4 animate-spin"
+                  />
+                  <h3 className="text-xl font-semibold text-gray-600 mb-2">
+                    Loading products...
+                  </h3>
+                </div>
+              ) : products.length === 0 ? (
                 <div className="bg-white rounded-lg border border-gray-200 p-12 text-center">
                   <Package
                     size={64}
