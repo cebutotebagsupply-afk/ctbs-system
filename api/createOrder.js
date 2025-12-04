@@ -12,7 +12,16 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'Missing order summary' });
     }
 
+    const titleValue = customerName || 'Untitled Order';
     const properties = {
+      Name: {
+        title: [
+          {
+            type: 'text',
+            text: { content: titleValue.slice(0, 1900) },
+          },
+        ],
+      },
       'Order Summary': {
         rich_text: [
           {
@@ -25,17 +34,6 @@ export default async function handler(req, res) {
         status: { name: 'New' }, // must match your Notion Status option
       },
     };
-
-    if (customerName) {
-      properties['Customer Name'] = {
-        rich_text: [
-          {
-            type: 'text',
-            text: { content: customerName.slice(0, 1900) },
-          },
-        ],
-      };
-    }
 
     if (designFileUrl) {
       properties['Design File'] = {
