@@ -182,6 +182,13 @@ export default function CTBSAdminDashboard() {
   const [isLoadingProducts, setIsLoadingProducts] = useState(true);
   const [isSavingProducts, setIsSavingProducts] = useState(false);
 
+  // Media Library states
+  const [showMediaLibrary, setShowMediaLibrary] = useState(false);
+  const [mediaAssets, setMediaAssets] = useState([]);
+  const [isLoadingMedia, setIsLoadingMedia] = useState(false);
+  const [mediaNextCursor, setMediaNextCursor] = useState(null);
+  const [mediaSelectTarget, setMediaSelectTarget] = useState(null); // 'product', 'logo', or { type: 'variation', index: number }
+
   const [productForm, setProductForm] = useState({
     name: '',
     image: '',
@@ -196,7 +203,6 @@ export default function CTBSAdminDashboard() {
   const [checkoutErrors, setCheckoutErrors] = useState({});
   const [showGreeting, setShowGreeting] = useState(true);
   const [isGreetingClosing, setIsGreetingClosing] = useState(false);
-  const [showConfirmation, setShowConfirmation] = useState(false);
 
   const handleStartKiosk = () => {
     setIsGreetingClosing(true);
@@ -231,38 +237,17 @@ export default function CTBSAdminDashboard() {
       setIsSubmittingOrder(true);
 
       const summary = buildOrderSummary();
-      const designFiles = cart.map((item) => item.designFile).filter(Boolean);
-      let designFileUrl = '';
-
-      if (designFiles.length > 0 && designFiles[0]?.data) {
-        try {
-          const dataUrl = designFiles[0].data;
-          const blob = await (await fetch(dataUrl)).blob();
-          const formData = new FormData();
-          formData.append('file', blob, designFiles[0].name || 'design');
-          formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
-          const uploadRes = await fetch(
-            `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/auto/upload`,
-            { method: 'POST', body: formData }
-          );
-          const uploadJson = await uploadRes.json();
-          if (uploadRes.ok && uploadJson.secure_url) {
-            designFileUrl = uploadJson.secure_url;
-          } else {
-            console.error('Cloudinary design upload failed:', uploadJson);
-          }
-        } catch (e) {
-          console.error('Design upload error:', e);
-        }
-      }
+      const designFiles = cart.map((item) => item.designFile?.data).filter(Boolean);
+      const designFileUrl =
+        designFiles.find((url) => typeof url === 'string' && url.startsWith('http')) || '';
 
       const response = await fetch('/api/createOrder', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           summary,
-          customerName: checkoutForm.name,
           designFileUrl,
+          customerName: checkoutForm.name,
         }),
       });
 
@@ -289,10 +274,10 @@ export default function CTBSAdminDashboard() {
         return;
       }
 
-      fireConfetti();
+      alert(
+        'Order submitted successfully! We will contact you shortly.'
+      );
       setShowCheckout(false);
-      setShowCart(false);
-      setShowConfirmation(true);
       setCart([]);
       setCheckoutForm({
         name: '',
@@ -561,6 +546,69 @@ export default function CTBSAdminDashboard() {
     }
   };
 
+  // ========= Media Library functions =========
+  
+  const fetchMediaAssets = async (loadMore = false) => {
+    try {
+      setIsLoadingMedia(true);
+      let url = '/api/cloudinary-assets';
+      if (loadMore && mediaNextCursor) {
+        url += `?cursor=${mediaNextCursor}`;
+      }
+      
+      const response = await fetch(url);
+      const data = await response.json();
+      
+      if (response.ok) {
+        if (loadMore) {
+          setMediaAssets((prev) => [...prev, ...data.assets]);
+        } else {
+          setMediaAssets(data.assets || []);
+        }
+        setMediaNextCursor(data.nextCursor);
+      } else {
+        console.error('Failed to fetch media:', data.error);
+        alert('Failed to load media library: ' + (data.error || 'Unknown error'));
+      }
+    } catch (error) {
+      console.error('Error fetching media:', error);
+      alert('Failed to load media library');
+    } finally {
+      setIsLoadingMedia(false);
+    }
+  };
+
+  const openMediaLibrary = (target) => {
+    setMediaSelectTarget(target);
+    setShowMediaLibrary(true);
+    if (mediaAssets.length === 0) {
+      fetchMediaAssets();
+    }
+  };
+
+  const handleMediaSelect = (asset) => {
+    const imageUrl = asset.url;
+    
+    if (mediaSelectTarget === 'product') {
+      setProductForm((prev) => ({ ...prev, image: imageUrl }));
+    } else if (mediaSelectTarget === 'logo') {
+      setLogo(imageUrl);
+    } else if (mediaSelectTarget?.type === 'variation') {
+      const varIndex = mediaSelectTarget.index;
+      setProductForm((prev) => {
+        const updatedVariations = [...prev.variations];
+        updatedVariations[varIndex] = {
+          ...updatedVariations[varIndex],
+          image: imageUrl,
+        };
+        return { ...prev, variations: updatedVariations };
+      });
+    }
+    
+    setShowMediaLibrary(false);
+    setMediaSelectTarget(null);
+  };
+
   // ========= Product & variation logic =========
 
   const openProductModal = (product = null) => {
@@ -601,6 +649,7 @@ export default function CTBSAdminDashboard() {
         {
           fabric: '',
           description: '',
+          image: '',
           colors: [],
           sizes: [],
           printMethods: [],
@@ -1071,55 +1120,77 @@ export default function CTBSAdminDashboard() {
     if (action === 'orders') {
       setShowCart(true);
     }
+    fireConfetti();
   };
 
   // Build a human-readable summary that we'll send to Notion
   const buildOrderSummary = () => {
+    const firstCartItem = cart[0] || {};
+    const p = selectedProduct || {};
+    const k = kioskSelections || {};
     const shipping = shippingOptions.find((opt) => opt.id === checkoutForm.shippingOption);
-    const lines = [];
 
-    lines.push('CUSTOMER DETAILS:');
-    lines.push(`• Name: ${checkoutForm.name || 'N/A'}`);
-    lines.push(`• Contact: ${checkoutForm.contactNumber || 'N/A'}`);
-    lines.push(`• Address: ${checkoutForm.address || 'N/A'}`);
-    lines.push(
-      `• Shipping: ${
-        shipping ? `${shipping.name}${shipping.description ? ` (${shipping.description})` : ''}` : 'N/A'
-      }`
-    );
+    const variationName =
+      k.variation !== null && k.variation !== undefined && p.variations
+        ? p.variations[k.variation]?.fabric
+        : firstCartItem.variation || null;
+    const colorName =
+      k.color !== null && k.color !== undefined && p.variations?.[k.variation]?.colors
+        ? p.variations[k.variation].colors[k.color]?.name
+        : firstCartItem.color || null;
+    const sizeName =
+      k.size === 'custom'
+        ? k.customSize
+        : k.size !== null && k.size !== undefined && p.variations?.[k.variation]?.sizes
+        ? p.variations[k.variation].sizes[k.size]?.name
+        : firstCartItem.size || null;
+    const printMethodName =
+      k.printMethod !== null && k.printMethod !== undefined && p.variations?.[k.variation]?.printMethods
+        ? p.variations[k.variation].printMethods[k.printMethod]?.name
+        : firstCartItem.printMethod || null;
+    const printSizeName =
+      k.printSize !== null &&
+      k.printSize !== undefined &&
+      k.printMethod !== null &&
+      p.variations?.[k.variation]?.printMethods?.[k.printMethod]?.printSizes
+        ? p.variations[k.variation].printMethods[k.printMethod].printSizes[k.printSize]?.name
+        : firstCartItem.printSize || null;
+    const addOnNames =
+      (k.addOns || []).map((idx) => p.addOns?.[idx]?.name).filter(Boolean).concat(firstCartItem.addOns || []);
 
-    if (cart.length === 0) {
-      lines.push('');
-      lines.push('ITEM 1');
-      lines.push('• No items in cart');
-      return lines.join('\n');
-    }
+    const lines = [
+      `PRODUCT: ${p.name || firstCartItem.product || 'Unknown product'}`,
+      '',
+      'CUSTOMIZATION:',
+    ];
 
-    const specialNotes = [];
+    if (variationName) lines.push(`• Variation: ${variationName}`);
+    if (colorName) lines.push(`• Color: ${colorName}`);
+    if (sizeName) lines.push(`• Size: ${sizeName}`);
+    if (k.customSize && k.size === 'custom') lines.push(`• Custom size: ${k.customSize}`);
+    if (printMethodName) lines.push(`• Print method: ${printMethodName}`);
+    if (printSizeName) lines.push(`• Print size: ${printSizeName}`);
+    if (addOnNames.length) lines.push(`• Add-ons: ${addOnNames.join(', ')}`);
 
-    cart.forEach((item, idx) => {
-      lines.push('');
-      lines.push(`ITEM ${idx + 1}`);
-      if (item.variation) lines.push(`• Fabric: ${item.variation}`);
-      if (item.color) lines.push(`• Color: ${item.color}`);
-      if (item.size) lines.push(`• Size: ${item.size}`);
-      if (item.printMethod)
-        lines.push(
-          `• Print method: ${item.printMethod}${item.printSize ? ` (${item.printSize})` : ''}`
-        );
-      if (item.addOns?.length) lines.push(`• Add-ons: ${item.addOns.join(', ')}`);
-      lines.push(`• Quantity: ${item.quantity || 1}`);
-      if (item.designFile?.name) lines.push(`• Design file: ${item.designFile.name}`);
-      if (item.specialInstructions) {
-        specialNotes.push(`• Item ${idx + 1}: ${item.specialInstructions}`);
-      }
-    });
+    lines.push('');
+    lines.push('ORDER DETAILS:');
+    if (k.quantity || firstCartItem.quantity) lines.push(`• Quantity: ${k.quantity || firstCartItem.quantity}`);
+    if (k.designFile?.name || firstCartItem.designFile?.name)
+      lines.push(`• Design file: ${k.designFile?.name || firstCartItem.designFile?.name}`);
+    if (k.specialInstructions || firstCartItem.specialInstructions)
+      lines.push(`• Notes: ${k.specialInstructions || firstCartItem.specialInstructions}`);
 
-    if (specialNotes.length) {
-      lines.push('');
-      lines.push('SPECIAL INSTRUCTIONS:');
-      specialNotes.forEach((note) => lines.push(note));
-    }
+    lines.push('');
+    lines.push('CUSTOMER:');
+    if (checkoutForm.name) lines.push(`• Name: ${checkoutForm.name}`);
+    if (checkoutForm.contactNumber)
+      lines.push(`• Contact: ${checkoutForm.contactNumber}`);
+    if (checkoutForm.address)
+      lines.push(`• Address: ${checkoutForm.address}`);
+    if (shipping)
+      lines.push(
+        `• Shipping: ${shipping.name} (${shipping.description || ''})`
+      );
 
     return lines.join('\n');
   };
@@ -1995,31 +2066,6 @@ export default function CTBSAdminDashboard() {
 
         {showCustomizeModal && renderKioskCustomizeModal()}
 
-        {showConfirmation && currentView === 'kiosk' && (
-          <div className="fixed inset-0 bg-[#0167FF] flex items-center justify-center z-50 px-6 text-center text-white">
-            <div className="space-y-4 max-w-md" style={{ animation: 'fadeIn 0.35s ease' }}>
-              <img
-                src="https://media.giphy.com/media/7yORCExjS87Jk10xSU/giphy.gif?cid=790b7611mzhatd71vqspu3l37xq9v7m4zgp9yomlbt3ank67&ep=v1_gifs_search&rid=giphy.gif&ct=g"
-                alt="Celebration"
-                className="w-40 h-40 mx-auto rounded-full object-cover shadow-lg border-4 border-white/50"
-              />
-              <h2 className="text-2xl font-bold">Success! We received your order</h2>
-              <p className="text-lg text-white/90">
-                We are excited to celebrate with you 💙
-              </p>
-              <p className="text-sm text-white/80">
-                We’ll reach out to you on Messenger soon to confirm the details and next steps.
-              </p>
-              <button
-                onClick={() => setShowConfirmation(false)}
-                className="mt-2 px-5 py-2 rounded-full bg-white text-[#0167FF] font-semibold hover:bg-white/90 transition"
-              >
-                Back to kiosk
-              </button>
-            </div>
-          </div>
-        )}
-
         {showCart && (
           <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-end">
             <div className="bg-white w-full max-w-md h-full overflow-y-auto flex flex-col">
@@ -2406,6 +2452,105 @@ export default function CTBSAdminDashboard() {
     return <div className="flex justify-center bg-gray-100 min-h-screen">{shell}</div>;
   };
 
+  // ========= Media Library Modal =========
+  
+  const renderMediaLibrary = () => (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-[60] overflow-y-auto">
+      <div
+        className="bg-white rounded-lg w-full max-w-4xl my-8"
+        style={{
+          maxHeight: '90vh',
+          display: 'flex',
+          flexDirection: 'column',
+          animation: 'fadeIn 0.25s ease',
+        }}
+      >
+        <div className="p-6 border-b flex justify-between items-center">
+          <h2 className="text-xl font-bold text-gray-800">Media Library</h2>
+          <button
+            onClick={() => {
+              setShowMediaLibrary(false);
+              setMediaSelectTarget(null);
+            }}
+            className="text-gray-400 hover:text-gray-600 transition"
+          >
+            <X size={24} />
+          </button>
+        </div>
+        
+        <div className="p-6 overflow-y-auto flex-1">
+          {isLoadingMedia && mediaAssets.length === 0 ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 size={40} className="animate-spin text-blue-500" />
+            </div>
+          ) : mediaAssets.length === 0 ? (
+            <div className="text-center py-12">
+              <Package size={56} className="mx-auto text-gray-300 mb-4" />
+              <p className="text-lg text-gray-500">No images in your library yet</p>
+              <p className="text-gray-400 mt-2 text-sm">Upload images to see them here</p>
+            </div>
+          ) : (
+            <>
+              <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 gap-3">
+                {mediaAssets.map((asset) => (
+                  <div
+                    key={asset.id}
+                    onClick={() => handleMediaSelect(asset)}
+                    className="aspect-square rounded-lg overflow-hidden cursor-pointer border-2 border-transparent hover:border-blue-500 transition-all hover:shadow-lg group"
+                  >
+                    <img
+                      src={asset.thumbnail}
+                      alt={asset.id}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                    />
+                  </div>
+                ))}
+              </div>
+              
+              {mediaNextCursor && (
+                <div className="text-center mt-6">
+                  <button
+                    onClick={() => fetchMediaAssets(true)}
+                    disabled={isLoadingMedia}
+                    className="px-6 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition disabled:opacity-50"
+                  >
+                    {isLoadingMedia ? (
+                      <span className="flex items-center gap-2">
+                        <Loader2 size={16} className="animate-spin" /> Loading...
+                      </span>
+                    ) : (
+                      'Load More'
+                    )}
+                  </button>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+        
+        <div className="p-4 border-t bg-gray-50 flex justify-between items-center">
+          <button
+            onClick={() => fetchMediaAssets()}
+            disabled={isLoadingMedia}
+            className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800 flex items-center gap-2"
+          >
+            <Loader2 size={14} className={isLoadingMedia ? 'animate-spin' : ''} />
+            Refresh
+          </button>
+          <button
+            onClick={() => {
+              setShowMediaLibrary(false);
+              setMediaSelectTarget(null);
+            }}
+            className="px-4 py-2 text-sm bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition"
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
   // ========= Admin view =========
 
   const renderProductModal = () => (
@@ -2456,32 +2601,52 @@ export default function CTBSAdminDashboard() {
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Product Photo
             </label>
-            <input
-              type="file"
-              accept="image/*"
-              onChange={handleProductImageUpload}
-              className="hidden"
-              id="product-image-upload"
-              disabled={isUploadingProductImage}
-            />
-            <label
-              htmlFor="product-image-upload"
-              className={`cursor-pointer inline-flex items-center justify-center w-32 h-32 border-2 border-dashed border-gray-300 rounded-lg hover:border-blue-500 transition-colors ${
-                isUploadingProductImage ? 'opacity-50 cursor-wait' : ''
-              }`}
-            >
-              {isUploadingProductImage ? (
-                <Loader2 size={24} className="text-blue-500 animate-spin" />
-              ) : productForm.image ? (
-                <img
-                  src={productForm.image}
-                  alt="Product"
-                  className="w-full h-full object-cover rounded-lg"
-                />
-              ) : (
-                <Upload size={20} className="text-gray-400" />
-              )}
-            </label>
+            <div className="flex items-start gap-3">
+              <input
+                type="file"
+                accept="image/*"
+                onChange={handleProductImageUpload}
+                className="hidden"
+                id="product-image-upload"
+                disabled={isUploadingProductImage}
+              />
+              <label
+                htmlFor="product-image-upload"
+                className={`cursor-pointer inline-flex items-center justify-center w-32 h-32 border-2 border-dashed border-gray-300 rounded-lg hover:border-blue-500 transition-colors ${
+                  isUploadingProductImage ? 'opacity-50 cursor-wait' : ''
+                }`}
+              >
+                {isUploadingProductImage ? (
+                  <Loader2 size={24} className="text-blue-500 animate-spin" />
+                ) : productForm.image ? (
+                  <img
+                    src={productForm.image}
+                    alt="Product"
+                    className="w-full h-full object-cover rounded-lg"
+                  />
+                ) : (
+                  <Upload size={20} className="text-gray-400" />
+                )}
+              </label>
+              <div className="flex flex-col gap-2">
+                <button
+                  type="button"
+                  onClick={() => openMediaLibrary('product')}
+                  className="px-3 py-2 text-sm bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition flex items-center gap-2"
+                >
+                  <Package size={16} /> Choose from Library
+                </button>
+                {productForm.image && (
+                  <button
+                    type="button"
+                    onClick={() => setProductForm((prev) => ({ ...prev, image: '' }))}
+                    className="px-3 py-2 text-sm text-red-500 hover:text-red-700 transition"
+                  >
+                    Remove
+                  </button>
+                )}
+              </div>
+            </div>
           </div>
 
           <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
@@ -2577,32 +2742,75 @@ export default function CTBSAdminDashboard() {
 
                   {expandedVariations.includes(varIndex) && (
                     <div className="p-4 border-t border-gray-200 bg-white space-y-4">
-                      <div className="flex-1">
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Fabric
-                        </label>
-                        <input
-                          type="text"
-                          value={variation.fabric}
-                          onChange={(e) =>
-                            updateVariation(
-                              varIndex,
-                              'fabric',
-                              e.target.value
-                            )
-                          }
-                          placeholder="e.g., Premium Canvas"
-                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
-                        />
-                        <textarea
-                          value={variation.description || ''}
-                          onChange={(e) =>
-                            updateVariation(varIndex, 'description', e.target.value)
-                          }
-                          placeholder="Short description for this variation"
-                          rows={2}
-                          className="mt-2 w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-sm"
-                        />
+                      <div className="flex gap-4">
+                        <div className="flex-1">
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Fabric
+                          </label>
+                          <input
+                            type="text"
+                            value={variation.fabric}
+                            onChange={(e) =>
+                              updateVariation(
+                                varIndex,
+                                'fabric',
+                                e.target.value
+                              )
+                            }
+                            placeholder="e.g., Premium Canvas"
+                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                          />
+                          <textarea
+                            value={variation.description || ''}
+                            onChange={(e) =>
+                              updateVariation(varIndex, 'description', e.target.value)
+                            }
+                            placeholder="Short description for this variation"
+                            rows={2}
+                            className="mt-2 w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-sm"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Image
+                          </label>
+                          <div className="flex items-start gap-2">
+                            <input
+                              type="file"
+                              accept="image/*"
+                              onChange={(e) => handleVariationImageUpload(e, varIndex)}
+                              className="hidden"
+                              id={`variation-image-${varIndex}`}
+                              disabled={uploadingVariationIndex === varIndex}
+                            />
+                            <label
+                              htmlFor={`variation-image-${varIndex}`}
+                              className={`cursor-pointer inline-flex items-center justify-center w-20 h-20 border-2 border-dashed border-gray-300 rounded-lg hover:border-blue-500 transition-colors ${
+                                uploadingVariationIndex === varIndex ? 'opacity-50 cursor-wait' : ''
+                              }`}
+                            >
+                              {uploadingVariationIndex === varIndex ? (
+                                <Loader2 size={20} className="text-blue-500 animate-spin" />
+                              ) : variation.image ? (
+                                <img
+                                  src={variation.image}
+                                  alt="Variation"
+                                  className="w-full h-full object-cover rounded-lg"
+                                />
+                              ) : (
+                                <Upload size={16} className="text-gray-400" />
+                              )}
+                            </label>
+                            <button
+                              type="button"
+                              onClick={() => openMediaLibrary({ type: 'variation', index: varIndex })}
+                              className="px-2 py-2 text-xs bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 transition"
+                              title="Choose from Library"
+                            >
+                              <Package size={14} />
+                            </button>
+                          </div>
+                        </div>
                       </div>
 
                       <div>
@@ -3224,6 +3432,13 @@ export default function CTBSAdminDashboard() {
           >
             {isUploadingLogo ? 'Uploading logo…' : 'Upload logo'}
           </label>
+          <button
+            type="button"
+            onClick={() => openMediaLibrary('logo')}
+            className="mt-2 w-full text-center border border-white/30 rounded-lg px-4 py-3 text-sm font-medium cursor-pointer transition-colors hover:bg-white/10 flex items-center justify-center gap-2"
+          >
+            <Package size={16} /> Choose from Library
+          </button>
         </div>
       </aside>
 
@@ -3477,6 +3692,7 @@ export default function CTBSAdminDashboard() {
       </div>
 
       {showProductModal && renderProductModal()}
+      {showMediaLibrary && renderMediaLibrary()}
     </div>
   );
 
