@@ -262,7 +262,7 @@ export default function CTBSAdminDashboard() {
         body: JSON.stringify({
           summary,
           customerName: checkoutForm.name,
-          // designFileUrl,
+          designFileUrl,
         }),
       });
 
@@ -1090,7 +1090,7 @@ export default function CTBSAdminDashboard() {
 
     if (cart.length === 0) {
       lines.push('');
-      lines.push('ITEMS:');
+      lines.push('ITEM 1');
       lines.push('• No items in cart');
       return lines.join('\n');
     }
