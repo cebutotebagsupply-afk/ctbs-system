@@ -1054,72 +1054,38 @@ export default function CTBSAdminDashboard() {
 
   // Build a human-readable summary that we'll send to Notion
   const buildOrderSummary = () => {
-    const firstCartItem = cart[0] || {};
-    const p = selectedProduct || {};
-    const k = kioskSelections || {};
     const shipping = shippingOptions.find((opt) => opt.id === checkoutForm.shippingOption);
+    const lines = [];
 
-    const variationName =
-      k.variation !== null && k.variation !== undefined && p.variations
-        ? p.variations[k.variation]?.fabric
-        : firstCartItem.variation || null;
-    const colorName =
-      k.color !== null && k.color !== undefined && p.variations?.[k.variation]?.colors
-        ? p.variations[k.variation].colors[k.color]?.name
-        : firstCartItem.color || null;
-    const sizeName =
-      k.size === 'custom'
-        ? k.customSize
-        : k.size !== null && k.size !== undefined && p.variations?.[k.variation]?.sizes
-        ? p.variations[k.variation].sizes[k.size]?.name
-        : firstCartItem.size || null;
-    const printMethodName =
-      k.printMethod !== null && k.printMethod !== undefined && p.variations?.[k.variation]?.printMethods
-        ? p.variations[k.variation].printMethods[k.printMethod]?.name
-        : firstCartItem.printMethod || null;
-    const printSizeName =
-      k.printSize !== null &&
-      k.printSize !== undefined &&
-      k.printMethod !== null &&
-      p.variations?.[k.variation]?.printMethods?.[k.printMethod]?.printSizes
-        ? p.variations[k.variation].printMethods[k.printMethod].printSizes[k.printSize]?.name
-        : firstCartItem.printSize || null;
-    const addOnNames =
-      (k.addOns || []).map((idx) => p.addOns?.[idx]?.name).filter(Boolean).concat(firstCartItem.addOns || []);
-
-    const lines = [
-      `PRODUCT: ${p.name || firstCartItem.product || 'Unknown product'}`,
-      '',
-      'CUSTOMIZATION:',
-    ];
-
-    if (variationName) lines.push(`• Variation: ${variationName}`);
-    if (colorName) lines.push(`• Color: ${colorName}`);
-    if (sizeName) lines.push(`• Size: ${sizeName}`);
-    if (k.customSize && k.size === 'custom') lines.push(`• Custom size: ${k.customSize}`);
-    if (printMethodName) lines.push(`• Print method: ${printMethodName}`);
-    if (printSizeName) lines.push(`• Print size: ${printSizeName}`);
-    if (addOnNames.length) lines.push(`• Add-ons: ${addOnNames.join(', ')}`);
-
-    lines.push('');
-    lines.push('ORDER DETAILS:');
-    if (k.quantity || firstCartItem.quantity) lines.push(`• Quantity: ${k.quantity || firstCartItem.quantity}`);
-    if (k.designFile?.name || firstCartItem.designFile?.name)
-      lines.push(`• Design file: ${k.designFile?.name || firstCartItem.designFile?.name}`);
-    if (k.specialInstructions || firstCartItem.specialInstructions)
-      lines.push(`• Notes: ${k.specialInstructions || firstCartItem.specialInstructions}`);
-
-    lines.push('');
     lines.push('CUSTOMER:');
-    if (checkoutForm.name) lines.push(`• Name: ${checkoutForm.name}`);
-    if (checkoutForm.contactNumber)
-      lines.push(`• Contact: ${checkoutForm.contactNumber}`);
-    if (checkoutForm.address)
-      lines.push(`• Address: ${checkoutForm.address}`);
-    if (shipping)
-      lines.push(
-        `• Shipping: ${shipping.name} (${shipping.description || ''})`
-      );
+    lines.push(`• Name: ${checkoutForm.name || 'N/A'}`);
+    lines.push(`• Contact: ${checkoutForm.contactNumber || 'N/A'}`);
+    lines.push(`• Address: ${checkoutForm.address || 'N/A'}`);
+    lines.push(
+      `• Shipping: ${
+        shipping ? `${shipping.name}${shipping.description ? ` (${shipping.description})` : ''}` : 'N/A'
+      }`
+    );
+
+    lines.push('');
+    lines.push('ITEMS:');
+    if (cart.length === 0) {
+      lines.push('• No items in cart');
+    } else {
+      cart.forEach((item, idx) => {
+        const detailParts = [];
+        if (item.variation) detailParts.push(item.variation);
+        if (item.color) detailParts.push(`Color: ${item.color}`);
+        if (item.size) detailParts.push(`Size: ${item.size}`);
+        if (item.printMethod) detailParts.push(`Print: ${item.printMethod}${item.printSize ? ` (${item.printSize})` : ''}`);
+        if (item.addOns?.length) detailParts.push(`Add-ons: ${item.addOns.join(', ')}`);
+        if (item.designFile?.name) detailParts.push(`Design: ${item.designFile.name}`);
+        if (item.specialInstructions) detailParts.push(`Notes: ${item.specialInstructions}`);
+
+        const base = `${idx + 1}. ${item.product || 'Product'} x${item.quantity || 1}`;
+        lines.push(detailParts.length ? `${base} — ${detailParts.join(' · ')}` : base);
+      });
+    }
 
     return lines.join('\n');
   };
