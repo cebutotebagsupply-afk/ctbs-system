@@ -1,86 +1,139 @@
 // api/createOrder.js
+// Vercel Serverless Function for Notion Integration
 
 export default async function handler(req, res) {
-  if (req.method !== "POST") {
-    return res.status(405).json({ error: "Method not allowed" });
+  // Only allow POST requests
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
+
+  // Get environment variables
+  const NOTION_API_KEY = process.env.NOTION_API_KEY;
+  const NOTION_DATABASE_ID = process.env.NOTION_DATABASE_ID;
+
+  // Validate environment variables
+  if (!NOTION_API_KEY) {
+    console.error('Missing NOTION_API_KEY environment variable');
+    return res.status(500).json({ error: 'Server configuration error: Missing Notion API Key' });
+  }
+
+  if (!NOTION_DATABASE_ID) {
+    console.error('Missing NOTION_DATABASE_ID environment variable');
+    return res.status(500).json({ error: 'Server configuration error: Missing Notion Database ID' });
   }
 
   try {
-    const { summary, designFileUrl, customerName } = req.body || {};
+    const { summary, designFileUrl, customerName } = req.body;
 
-    if (!summary) {
-      return res.status(400).json({ error: "Missing order summary" });
+    // Validate required fields
+    if (!customerName || !customerName.trim()) {
+      return res.status(400).json({ error: 'Customer name is required' });
     }
 
-    const nameToUse =
-      (customerName && customerName.trim()) || "Kiosk Order";
+    if (!summary || !summary.trim()) {
+      return res.status(400).json({ error: 'Order summary is required' });
+    }
 
+    // Build the Notion page properties
     const properties = {
-      // 🔹 REQUIRED title property
-      "Customer Name": {
+      // Customer Name - Title property (default Name column)
+      'Customer Name': {
         title: [
           {
-            type: "text",
-            text: { content: nameToUse },
+            text: {
+              content: customerName.trim(),
+            },
           },
         ],
       },
-
-      // 🔹 Order summary (rich text)
-      "Order Summary": {
+      // Order Summary - Rich Text property
+      'Order Summary': {
         rich_text: [
           {
-            type: "text",
-            text: { content: summary.slice(0, 1900) },
+            text: {
+              content: summary.substring(0, 2000), // Notion has a 2000 char limit per text block
+            },
           },
         ],
       },
-
-      // 🔹 Status (status type, not select)
+      // Status - Status property (set to "New")
       Status: {
-        status: { name: "New" }, // must match your Status option
+        status: {
+          name: 'New',
+        },
       },
     };
 
-    // 🔹 Optional design file if you start passing a URL
-    if (designFileUrl) {
-      properties["Design File"] = {
+    // Add Design File if URL is provided
+    if (designFileUrl && designFileUrl.trim()) {
+      properties['Design File'] = {
         files: [
           {
-            type: "external",
-            name: "Design",
-            external: { url: designFileUrl },
+            type: 'external',
+            name: 'Design File',
+            external: {
+              url: designFileUrl.trim(),
+            },
           },
         ],
       };
     }
 
-    const notionResponse = await fetch("https://api.notion.com/v1/pages", {
-      method: "POST",
+    // Create the page in Notion
+    const notionResponse = await fetch('https://api.notion.com/v1/pages', {
+      method: 'POST',
       headers: {
-        Authorization: `Bearer ${process.env.NOTION_API_KEY}`,
-        "Content-Type": "application/json",
-        "Notion-Version": "2022-06-28",
+        Authorization: `Bearer ${NOTION_API_KEY}`,
+        'Content-Type': 'application/json',
+        'Notion-Version': '2022-06-28',
       },
       body: JSON.stringify({
-        parent: { database_id: process.env.NOTION_DB_ID },
+        parent: {
+          database_id: NOTION_DATABASE_ID,
+        },
         properties,
       }),
     });
 
+    const notionData = await notionResponse.json();
+
     if (!notionResponse.ok) {
-      const detail = await notionResponse.text();
-      console.error("Notion error:", detail);
-      return res.status(notionResponse.status).json({
-        error: "Notion API error",
+      console.error('Notion API Error:', {
         status: notionResponse.status,
-        detail,
+        data: notionData,
+      });
+
+      // Provide helpful error messages
+      let errorMessage = 'Failed to create order in Notion';
+      
+      if (notionData.code === 'validation_error') {
+        errorMessage = `Notion validation error: ${notionData.message}. Please check your database properties match the expected format.`;
+      } else if (notionData.code === 'unauthorized') {
+        errorMessage = 'Notion API key is invalid or the integration does not have access to the database.';
+      } else if (notionData.code === 'object_not_found') {
+        errorMessage = 'Notion database not found. Please check your database ID and ensure the integration has access.';
+      } else if (notionData.message) {
+        errorMessage = notionData.message;
+      }
+
+      return res.status(notionResponse.status).json({ 
+        error: errorMessage,
+        detail: notionData.message || 'Unknown error',
       });
     }
 
-    return res.status(200).json({ success: true });
-  } catch (err) {
-    console.error("Server error:", err);
-    return res.status(500).json({ error: "Server error" });
+    // Success!
+    return res.status(200).json({ 
+      success: true, 
+      message: 'Order created successfully',
+      pageId: notionData.id,
+    });
+
+  } catch (error) {
+    console.error('Server error:', error);
+    return res.status(500).json({ 
+      error: 'Internal server error', 
+      detail: error.message,
+    });
   }
 }
