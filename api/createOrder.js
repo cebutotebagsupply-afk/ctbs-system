@@ -63,7 +63,13 @@ export default async function handler(req, res) {
     });
 
     if (!notionResponse.ok) {
-      const detail = await notionResponse.text();
+      const detailText = await notionResponse.text();
+      let detail;
+      try {
+        detail = JSON.parse(detailText);
+      } catch (e) {
+        detail = detailText;
+      }
       console.error('Notion error:', detail);
       return res.status(notionResponse.status).json({
         error: 'Notion API error',
