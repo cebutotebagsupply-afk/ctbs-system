@@ -196,6 +196,7 @@ export default function CTBSAdminDashboard() {
   const [checkoutErrors, setCheckoutErrors] = useState({});
   const [showGreeting, setShowGreeting] = useState(true);
   const [isGreetingClosing, setIsGreetingClosing] = useState(false);
+  const [showConfirmation, setShowConfirmation] = useState(false);
 
   const handleStartKiosk = () => {
     setIsGreetingClosing(true);
@@ -267,10 +268,10 @@ export default function CTBSAdminDashboard() {
         return;
       }
 
-      alert(
-        'Order submitted successfully! We will contact you shortly.'
-      );
+      fireConfetti();
       setShowCheckout(false);
+      setShowCart(false);
+      setShowConfirmation(true);
       setCart([]);
       setCheckoutForm({
         name: '',
@@ -1049,7 +1050,6 @@ export default function CTBSAdminDashboard() {
     if (action === 'orders') {
       setShowCart(true);
     }
-    fireConfetti();
   };
 
   // Build a human-readable summary that we'll send to Notion
@@ -1994,6 +1994,31 @@ export default function CTBSAdminDashboard() {
         </div>
 
         {showCustomizeModal && renderKioskCustomizeModal()}
+
+        {showConfirmation && currentView === 'kiosk' && (
+          <div className="fixed inset-0 bg-[#0167FF] flex items-center justify-center z-50 px-6 text-center text-white">
+            <div className="space-y-4 max-w-md" style={{ animation: 'fadeIn 0.35s ease' }}>
+              <img
+                src="https://media.giphy.com/media/7yORCExjS87Jk10xSU/giphy.gif?cid=790b7611mzhatd71vqspu3l37xq9v7m4zgp9yomlbt3ank67&ep=v1_gifs_search&rid=giphy.gif&ct=g"
+                alt="Celebration"
+                className="w-40 h-40 mx-auto rounded-full object-cover shadow-lg border-4 border-white/50"
+              />
+              <h2 className="text-2xl font-bold">Success! We received your order</h2>
+              <p className="text-lg text-white/90">
+                We are excited to celebrate with you 💙
+              </p>
+              <p className="text-sm text-white/80">
+                We’ll reach out to you on Messenger soon to confirm the details and next steps.
+              </p>
+              <button
+                onClick={() => setShowConfirmation(false)}
+                className="mt-2 px-5 py-2 rounded-full bg-white text-[#0167FF] font-semibold hover:bg-white/90 transition"
+              >
+                Back to kiosk
+              </button>
+            </div>
+          </div>
+        )}
 
         {showCart && (
           <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-end">
