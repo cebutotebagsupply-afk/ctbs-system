@@ -239,8 +239,8 @@ export default function CTBSAdminDashboard() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           summary,
-          designFileUrl,
           customerName: checkoutForm.name,
+          // designFileUrl,
         }),
       });
 
