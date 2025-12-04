@@ -203,6 +203,7 @@ export default function CTBSAdminDashboard() {
   const [checkoutErrors, setCheckoutErrors] = useState({});
   const [showGreeting, setShowGreeting] = useState(true);
   const [isGreetingClosing, setIsGreetingClosing] = useState(false);
+  const [showConfirmation, setShowConfirmation] = useState(false);
 
   const handleStartKiosk = () => {
     setIsGreetingClosing(true);
@@ -237,9 +238,33 @@ export default function CTBSAdminDashboard() {
       setIsSubmittingOrder(true);
 
       const summary = buildOrderSummary();
-      const designFiles = cart.map((item) => item.designFile?.data).filter(Boolean);
-      const designFileUrl =
-        designFiles.find((url) => typeof url === 'string' && url.startsWith('http')) || '';
+      const designFiles = cart
+        .map((item) => (item.designFile?.data ? { data: item.designFile.data, name: item.designFile.name } : null))
+        .filter(Boolean);
+
+      let designFileUrl = '';
+
+      if (designFiles.length > 0) {
+        try {
+          const dataUrl = designFiles[0].data;
+          const blob = await (await fetch(dataUrl)).blob();
+          const formData = new FormData();
+          formData.append('file', blob, designFiles[0].name || 'design');
+          formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
+          const uploadRes = await fetch(
+            `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/auto/upload`,
+            { method: 'POST', body: formData }
+          );
+          const uploadJson = await uploadRes.json();
+          if (uploadRes.ok && uploadJson.secure_url) {
+            designFileUrl = uploadJson.secure_url;
+          } else {
+            console.error('Cloudinary design upload failed:', uploadJson);
+          }
+        } catch (e) {
+          console.error('Design upload error:', e);
+        }
+      }
 
       const response = await fetch('/api/createOrder', {
         method: 'POST',
@@ -274,10 +299,10 @@ export default function CTBSAdminDashboard() {
         return;
       }
 
-      alert(
-        'Order submitted successfully! We will contact you shortly.'
-      );
+      fireConfetti();
       setShowCheckout(false);
+      setShowCart(false);
+      setShowConfirmation(true);
       setCart([]);
       setCheckoutForm({
         name: '',
@@ -1120,77 +1145,45 @@ export default function CTBSAdminDashboard() {
     if (action === 'orders') {
       setShowCart(true);
     }
-    fireConfetti();
   };
 
   // Build a human-readable summary that we'll send to Notion
   const buildOrderSummary = () => {
-    const firstCartItem = cart[0] || {};
-    const p = selectedProduct || {};
-    const k = kioskSelections || {};
     const shipping = shippingOptions.find((opt) => opt.id === checkoutForm.shippingOption);
+    const lines = [];
 
-    const variationName =
-      k.variation !== null && k.variation !== undefined && p.variations
-        ? p.variations[k.variation]?.fabric
-        : firstCartItem.variation || null;
-    const colorName =
-      k.color !== null && k.color !== undefined && p.variations?.[k.variation]?.colors
-        ? p.variations[k.variation].colors[k.color]?.name
-        : firstCartItem.color || null;
-    const sizeName =
-      k.size === 'custom'
-        ? k.customSize
-        : k.size !== null && k.size !== undefined && p.variations?.[k.variation]?.sizes
-        ? p.variations[k.variation].sizes[k.size]?.name
-        : firstCartItem.size || null;
-    const printMethodName =
-      k.printMethod !== null && k.printMethod !== undefined && p.variations?.[k.variation]?.printMethods
-        ? p.variations[k.variation].printMethods[k.printMethod]?.name
-        : firstCartItem.printMethod || null;
-    const printSizeName =
-      k.printSize !== null &&
-      k.printSize !== undefined &&
-      k.printMethod !== null &&
-      p.variations?.[k.variation]?.printMethods?.[k.printMethod]?.printSizes
-        ? p.variations[k.variation].printMethods[k.printMethod].printSizes[k.printSize]?.name
-        : firstCartItem.printSize || null;
-    const addOnNames =
-      (k.addOns || []).map((idx) => p.addOns?.[idx]?.name).filter(Boolean).concat(firstCartItem.addOns || []);
+    lines.push('CUSTOMER DETAILS:');
+    lines.push(`• Name: ${checkoutForm.name || 'N/A'}`);
+    lines.push(`• Contact: ${checkoutForm.contactNumber || 'N/A'}`);
+    lines.push(`• Address: ${checkoutForm.address || 'N/A'}`);
+    lines.push(
+      `• Shipping: ${
+        shipping ? `${shipping.name}${shipping.description ? ` (${shipping.description})` : ''}` : 'N/A'
+      }`
+    );
 
-    const lines = [
-      `PRODUCT: ${p.name || firstCartItem.product || 'Unknown product'}`,
-      '',
-      'CUSTOMIZATION:',
-    ];
+    if (cart.length === 0) {
+      lines.push('');
+      lines.push('ITEM 1');
+      lines.push('• No items in cart');
+      return lines.join('\n');
+    }
 
-    if (variationName) lines.push(`• Variation: ${variationName}`);
-    if (colorName) lines.push(`• Color: ${colorName}`);
-    if (sizeName) lines.push(`• Size: ${sizeName}`);
-    if (k.customSize && k.size === 'custom') lines.push(`• Custom size: ${k.customSize}`);
-    if (printMethodName) lines.push(`• Print method: ${printMethodName}`);
-    if (printSizeName) lines.push(`• Print size: ${printSizeName}`);
-    if (addOnNames.length) lines.push(`• Add-ons: ${addOnNames.join(', ')}`);
-
-    lines.push('');
-    lines.push('ORDER DETAILS:');
-    if (k.quantity || firstCartItem.quantity) lines.push(`• Quantity: ${k.quantity || firstCartItem.quantity}`);
-    if (k.designFile?.name || firstCartItem.designFile?.name)
-      lines.push(`• Design file: ${k.designFile?.name || firstCartItem.designFile?.name}`);
-    if (k.specialInstructions || firstCartItem.specialInstructions)
-      lines.push(`• Notes: ${k.specialInstructions || firstCartItem.specialInstructions}`);
-
-    lines.push('');
-    lines.push('CUSTOMER:');
-    if (checkoutForm.name) lines.push(`• Name: ${checkoutForm.name}`);
-    if (checkoutForm.contactNumber)
-      lines.push(`• Contact: ${checkoutForm.contactNumber}`);
-    if (checkoutForm.address)
-      lines.push(`• Address: ${checkoutForm.address}`);
-    if (shipping)
-      lines.push(
-        `• Shipping: ${shipping.name} (${shipping.description || ''})`
-      );
+    cart.forEach((item, idx) => {
+      lines.push('');
+      lines.push(`ITEM ${idx + 1}`);
+      if (item.variation) lines.push(`• Fabric: ${item.variation}`);
+      if (item.color) lines.push(`• Color: ${item.color}`);
+      if (item.size) lines.push(`• Size: ${item.size}`);
+      if (item.printMethod)
+        lines.push(
+          `• Print method: ${item.printMethod}${item.printSize ? ` (${item.printSize})` : ''}`
+        );
+      if (item.addOns?.length) lines.push(`• Add-ons: ${item.addOns.join(', ')}`);
+      lines.push(`• Quantity: ${item.quantity || 1}`);
+      if (item.specialInstructions) lines.push(`• Instruction: ${item.specialInstructions}`);
+      if (item.designFile?.name) lines.push(`• Design file: ${item.designFile.name}`);
+    });
 
     return lines.join('\n');
   };
@@ -2065,6 +2058,31 @@ export default function CTBSAdminDashboard() {
         </div>
 
         {showCustomizeModal && renderKioskCustomizeModal()}
+
+        {showConfirmation && currentView === 'kiosk' && (
+          <div className="fixed inset-0 bg-[#0167FF] flex items-center justify-center z-50 px-6 text-center text-white">
+            <div className="space-y-4 max-w-md" style={{ animation: 'fadeIn 0.35s ease' }}>
+              <img
+                src="https://media.giphy.com/media/7yORCExjS87Jk10xSU/giphy.gif?cid=790b7611mzhatd71vqspu3l37xq9v7m4zgp9yomlbt3ank67&ep=v1_gifs_search&rid=giphy.gif&ct=g"
+                alt="Celebration"
+                className="w-40 h-40 mx-auto rounded-full object-cover shadow-lg border-4 border-white/50"
+              />
+              <h2 className="text-2xl font-bold">Success! We received your order</h2>
+              <p className="text-lg text-white/90">
+                We are excited to celebrate with you 💙
+              </p>
+              <p className="text-sm text-white/80">
+                We’ll reach out to you on Messenger soon to confirm the details and next steps.
+              </p>
+              <button
+                onClick={() => setShowConfirmation(false)}
+                className="mt-2 px-5 py-2 rounded-full bg-white text-[#0167FF] font-semibold hover:bg-white/90 transition"
+              >
+                Back to kiosk
+              </button>
+            </div>
+          </div>
+        )}
 
         {showCart && (
           <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-end">
