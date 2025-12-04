@@ -178,6 +178,7 @@ export default function CTBSAdminDashboard() {
     contactNumber: '',
   });
   const [shippingOptions, setShippingOptions] = useState(DEFAULT_SHIPPING_OPTIONS);
+  const [isSubmittingOrder, setIsSubmittingOrder] = useState(false);
 
   const [productForm, setProductForm] = useState({
     name: '',
@@ -193,7 +194,6 @@ export default function CTBSAdminDashboard() {
   const [checkoutErrors, setCheckoutErrors] = useState({});
   const [showGreeting, setShowGreeting] = useState(true);
   const [isGreetingClosing, setIsGreetingClosing] = useState(false);
-  const [isSubmittingOrder, setIsSubmittingOrder] = useState(false);
 
   const handleStartKiosk = () => {
     setIsGreetingClosing(true);
@@ -202,6 +202,76 @@ export default function CTBSAdminDashboard() {
       setShowGreeting(false);
       setIsGreetingClosing(false);
     }, 400);
+  };
+
+  const handleSubmitOrder = async () => {
+    // validation
+    const errors = {};
+    if (shippingOptions.length > 0 && !checkoutForm.shippingOption) {
+      errors.shippingOption = 'Please choose a shipping option.';
+    }
+    if (!checkoutForm.name.trim()) {
+      errors.name = 'Full name is required.';
+    }
+    if (!checkoutForm.contactNumber.trim()) {
+      errors.contactNumber = 'Contact number is required.';
+    }
+    if (!checkoutForm.address.trim()) {
+      errors.address = 'Delivery address is required.';
+    }
+    setCheckoutErrors(errors);
+    if (Object.keys(errors).length > 0) {
+      return;
+    }
+
+    try {
+      setIsSubmittingOrder(true);
+
+      const summary = buildOrderSummary();
+      const designFiles = cart.map((item) => item.designFile?.data).filter(Boolean);
+      const designFileUrl = designFiles[0] || '';
+
+      const response = await fetch('/api/createOrder', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          summary,
+          designFileUrl,
+          customerName: checkoutForm.name,
+        }),
+      });
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        console.error('Notion createOrder error:', data);
+        alert(
+          'Something went wrong sending your order to our system. Please try again.'
+        );
+        return;
+      }
+
+      alert(
+        'Order submitted successfully! We will contact you shortly.'
+      );
+      setShowCheckout(false);
+      setCart([]);
+      setCheckoutForm({
+        name: '',
+        address: '',
+        shippingOption: '',
+        contactNumber: '',
+      });
+      setCheckoutErrors({});
+      setCheckoutStep('shipping');
+    } catch (err) {
+      console.error('Network error submitting order:', err);
+      alert(
+        'Network error while submitting your order. Please try again.'
+      );
+    } finally {
+      setIsSubmittingOrder(false);
+    }
   };
 
   // Close modals via Escape key
@@ -939,88 +1009,76 @@ export default function CTBSAdminDashboard() {
     fireConfetti();
   };
 
-  const getShippingLabel = () => {
-    const match = shippingOptions.find((opt) => opt.id === checkoutForm.shippingOption);
-    return match ? match.name : 'Not specified';
-  };
-
+  // Build a human-readable summary that we'll send to Notion
   const buildOrderSummary = () => {
-    const lines = [];
-    lines.push(`Customer: ${checkoutForm.name}`);
-    lines.push(`Contact: ${checkoutForm.contactNumber || 'N/A'}`);
-    lines.push(`Address: ${checkoutForm.address || 'N/A'}`);
-    lines.push(`Shipping: ${getShippingLabel()}`);
+    const firstCartItem = cart[0] || {};
+    const p = selectedProduct || {};
+    const k = kioskSelections || {};
+    const shipping = shippingOptions.find((opt) => opt.id === checkoutForm.shippingOption);
+
+    const variationName =
+      k.variation !== null && k.variation !== undefined && p.variations
+        ? p.variations[k.variation]?.fabric
+        : firstCartItem.variation || null;
+    const colorName =
+      k.color !== null && k.color !== undefined && p.variations?.[k.variation]?.colors
+        ? p.variations[k.variation].colors[k.color]?.name
+        : firstCartItem.color || null;
+    const sizeName =
+      k.size === 'custom'
+        ? k.customSize
+        : k.size !== null && k.size !== undefined && p.variations?.[k.variation]?.sizes
+        ? p.variations[k.variation].sizes[k.size]?.name
+        : firstCartItem.size || null;
+    const printMethodName =
+      k.printMethod !== null && k.printMethod !== undefined && p.variations?.[k.variation]?.printMethods
+        ? p.variations[k.variation].printMethods[k.printMethod]?.name
+        : firstCartItem.printMethod || null;
+    const printSizeName =
+      k.printSize !== null &&
+      k.printSize !== undefined &&
+      k.printMethod !== null &&
+      p.variations?.[k.variation]?.printMethods?.[k.printMethod]?.printSizes
+        ? p.variations[k.variation].printMethods[k.printMethod].printSizes[k.printSize]?.name
+        : firstCartItem.printSize || null;
+    const addOnNames =
+      (k.addOns || []).map((idx) => p.addOns?.[idx]?.name).filter(Boolean).concat(firstCartItem.addOns || []);
+
+    const lines = [
+      `PRODUCT: ${p.name || firstCartItem.product || 'Unknown product'}`,
+      '',
+      'CUSTOMIZATION:',
+    ];
+
+    if (variationName) lines.push(`• Variation: ${variationName}`);
+    if (colorName) lines.push(`• Color: ${colorName}`);
+    if (sizeName) lines.push(`• Size: ${sizeName}`);
+    if (k.customSize && k.size === 'custom') lines.push(`• Custom size: ${k.customSize}`);
+    if (printMethodName) lines.push(`• Print method: ${printMethodName}`);
+    if (printSizeName) lines.push(`• Print size: ${printSizeName}`);
+    if (addOnNames.length) lines.push(`• Add-ons: ${addOnNames.join(', ')}`);
+
     lines.push('');
-    lines.push('Items:');
-    cart.forEach((item, idx) => {
-      const detailParts = [];
-      if (item.variation) detailParts.push(item.variation);
-      if (item.color) detailParts.push(`Color: ${item.color}`);
-      if (item.size) detailParts.push(`Size: ${item.size}`);
-      if (item.printMethod) detailParts.push(`Print: ${item.printMethod}${item.printSize ? ` (${item.printSize})` : ''}`);
-      if (item.addOns?.length) detailParts.push(`Add-ons: ${item.addOns.join(', ')}`);
-      if (item.specialInstructions) detailParts.push(`Notes: ${item.specialInstructions}`);
-      lines.push(`${idx + 1}. ${item.product} x${item.quantity}${detailParts.length ? ` — ${detailParts.join(' · ')}` : ''}`);
-    });
-    return lines.join('\n').slice(0, 1800);
-  };
+    lines.push('ORDER DETAILS:');
+    if (k.quantity || firstCartItem.quantity) lines.push(`• Quantity: ${k.quantity || firstCartItem.quantity}`);
+    if (k.designFile?.name || firstCartItem.designFile?.name)
+      lines.push(`• Design file: ${k.designFile?.name || firstCartItem.designFile?.name}`);
+    if (k.specialInstructions || firstCartItem.specialInstructions)
+      lines.push(`• Notes: ${k.specialInstructions || firstCartItem.specialInstructions}`);
 
-  const submitOrderToNotion = async () => {
-    const errors = {};
-    if (shippingOptions.length > 0 && !checkoutForm.shippingOption) {
-      errors.shippingOption = 'Please choose a shipping option.';
-    }
-    if (!checkoutForm.name.trim()) {
-      errors.name = 'Full name is required.';
-    }
-    if (!checkoutForm.contactNumber.trim()) {
-      errors.contactNumber = 'Contact number is required.';
-    }
-    if (!checkoutForm.address.trim()) {
-      errors.address = 'Delivery address is required.';
-    }
-    setCheckoutErrors(errors);
-    if (Object.keys(errors).length > 0) {
-      return;
-    }
+    lines.push('');
+    lines.push('CUSTOMER:');
+    if (checkoutForm.name) lines.push(`• Name: ${checkoutForm.name}`);
+    if (checkoutForm.contactNumber)
+      lines.push(`• Contact: ${checkoutForm.contactNumber}`);
+    if (checkoutForm.address)
+      lines.push(`• Address: ${checkoutForm.address}`);
+    if (shipping)
+      lines.push(
+        `• Shipping: ${shipping.name} (${shipping.description || ''})`
+      );
 
-    const summary = buildOrderSummary();
-    const designFiles = cart.map((item) => item.designFile).filter(Boolean);
-    const designFile = designFiles[0];
-
-    setIsSubmittingOrder(true);
-    try {
-      const res = await fetch('/api/createOrder', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          summary,
-          designFileUrl: designFile?.data || '',
-          customerName: checkoutForm.name,
-        }),
-      });
-      if (!res.ok) {
-        const detail = await res.text();
-        alert(`Failed to submit to Notion. ${detail || ''}`);
-        return;
-      }
-      alert('Order submitted successfully! We will contact you shortly.');
-      setShowCheckout(false);
-      setCart([]);
-      setCheckoutForm({
-        name: '',
-        address: '',
-        shippingOption: '',
-        contactNumber: '',
-      });
-      setCheckoutErrors({});
-      setCheckoutStep('shipping');
-    } catch (err) {
-      console.error('Submit error', err);
-      alert('Failed to submit order. Please try again.');
-    } finally {
-      setIsSubmittingOrder(false);
-    }
+    return lines.join('\n');
   };
 
   const removeFromCart = (itemId) => {
@@ -2249,11 +2307,11 @@ export default function CTBSAdminDashboard() {
                 )}
                 {checkoutStep === 'details' && (
                   <button
-                    onClick={submitOrderToNotion}
+                    onClick={handleSubmitOrder}
                     disabled={isSubmittingOrder}
                     className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm disabled:opacity-60 disabled:cursor-not-allowed"
                   >
-                    {isSubmittingOrder ? 'Submitting...' : 'Submit Order'}
+                    {isSubmittingOrder ? 'Sending...' : 'Submit Order'}
                   </button>
                 )}
               </div>
