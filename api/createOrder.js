@@ -12,13 +12,12 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'Missing order summary' });
     }
 
-    const titleValue = customerName || 'Untitled Order';
     const properties = {
-      Name: {
+      'Customer Name': {
         title: [
           {
             type: 'text',
-            text: { content: titleValue.slice(0, 1900) },
+            text: { content: (customerName || 'Untitled Order').slice(0, 1900) },
           },
         ],
       },
@@ -27,14 +26,6 @@ export default async function handler(req, res) {
           {
             type: 'text',
             text: { content: summary.slice(0, 1900) },
-          },
-        ],
-      },
-      'Customer Name': {
-        rich_text: [
-          {
-            type: 'text',
-            text: { content: (customerName || '').slice(0, 1900) },
           },
         ],
       },
