@@ -2516,7 +2516,7 @@ export default function CTBSAdminDashboard() {
       return <div className="flex justify-center">{shell}</div>;
     }
 
-    return <div className="flex justify-center bg-gray-100 min-h-screen">{shell}</div>;
+    return <div className="flex justify-center bg-gray-100 min-h-screen w-full overflow-x-hidden px-3 sm:px-0">{shell}</div>;
   };
 
   // ========= Media Library Modal =========
@@ -3385,7 +3385,7 @@ export default function CTBSAdminDashboard() {
 
   const renderAdmin = () => (
     <div
-      className="min-h-screen bg-gray-50 flex overflow-hidden"
+      className="min-h-screen bg-gray-50 flex flex-col lg:flex-row overflow-hidden"
       style={{ fontFamily: 'Helvetica, Arial, sans-serif' }}
     >
       {deleteConfirmProduct && (
@@ -3440,7 +3440,7 @@ export default function CTBSAdminDashboard() {
       )}
 
       <aside
-        className="w-[300px] bg-[#0167FF] text-white flex flex-col h-screen max-h-screen overflow-y-auto"
+        className="w-full lg:w-[300px] bg-[#0167FF] text-white flex flex-col h-auto lg:h-screen max-h-screen overflow-y-auto"
       >
         <div className="pt-8 pb-6 flex justify-center">
           <div className="h-[66px] w-[134px] bg-white/10 rounded-lg flex items-center justify-center overflow-hidden">
@@ -3503,7 +3503,7 @@ export default function CTBSAdminDashboard() {
       </aside>
 
       <div className="flex-1 flex flex-col h-screen max-h-screen">
-        <div className="bg-white border-b px-10 py-6 flex justify-between items-center">
+        <div className="bg-white border-b px-4 sm:px-6 lg:px-10 py-6 flex flex-wrap gap-3 justify-between items-center">
           <div>
             <div className="flex items-center gap-2">
               <p className="text-sm text-gray-500">Admin Dashboard</p>
@@ -3545,7 +3545,7 @@ export default function CTBSAdminDashboard() {
           ) : null}
         </div>
 
-        <div className="flex-1 px-10 py-8 overflow-y-auto">
+        <div className="flex-1 w-full px-4 sm:px-6 lg:px-10 py-8 overflow-y-auto">
           {adminTab === 'products' && (
             <>
               {isLoadingProducts ? (
@@ -3758,7 +3758,7 @@ export default function CTBSAdminDashboard() {
 
   return (
     <>
-      <style>{`* { font-family: Helvetica, Arial, sans-serif; } @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } } @keyframes fadeOut { from { opacity: 1; transform: translateY(0); } to { opacity: 0; transform: translateY(6px); } }`}</style>
+      <style>{`* { font-family: Helvetica, Arial, sans-serif; } html, body { overflow-x: hidden; } @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } } @keyframes fadeOut { from { opacity: 1; transform: translateY(0); } to { opacity: 0; transform: translateY(6px); } }`}</style>
       {currentView === 'admin' ? renderAdmin() : renderKiosk()}
     </>
   );
