@@ -78,10 +78,37 @@ export default async function handler(req, res) {
 
     const MAX_FILE_BYTES = 5 * 1024 * 1024;   // max per file
     const MAX_TOTAL_BYTES = 5 * 1024 * 1024;  // max combined
-    const MAX_URL_LENGTH = 1900; // Notion rejects external URLs longer than ~2000 chars
-
     const skippedDesignFiles = [];
     let totalBytes = 0;
+
+    const CLOUD_NAME = process.env.CLOUDINARY_CLOUD_NAME || 'dvlwr8kro';
+    const CLOUD_PRESET = process.env.CLOUDINARY_UPLOAD_PRESET || 'CTBS2025';
+
+    const uploadDesignToCloudinary = async (file) => {
+      try {
+        const formData = new FormData();
+        formData.append('file', file.data);
+        formData.append('upload_preset', CLOUD_PRESET);
+        formData.append('folder', 'ctbs-design-uploads');
+
+        const uploadRes = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/upload`, {
+          method: 'POST',
+          body: formData,
+        });
+
+        const uploadData = await uploadRes.json();
+        if (!uploadRes.ok || !uploadData.secure_url) {
+          console.error('Cloudinary upload failed:', uploadData);
+          skippedDesignFiles.push(file.name || 'Design File');
+          return null;
+        }
+        return uploadData.secure_url;
+      } catch (err) {
+        console.error('Cloudinary upload error:', err);
+        skippedDesignFiles.push(file.name || 'Design File');
+        return null;
+      }
+    };
 
     for (const file of allDesignFiles) {
       if (!file?.data) continue;
@@ -107,17 +134,14 @@ export default async function handler(req, res) {
 
       totalBytes += effectiveSize;
 
-      // Guard against Notion rejecting extremely long URLs
-      if ((file.data || '').length > MAX_URL_LENGTH) {
-        skippedDesignFiles.push(file.name || 'Design File');
-        continue;
-      }
+      const uploadedUrl = await uploadDesignToCloudinary(file);
+      if (!uploadedUrl) continue;
 
       designFilePayloads.push({
         type: 'external',
         name: file.name || 'Design File',
         external: {
-          url: file.data,
+          url: uploadedUrl,
         },
       });
     }
@@ -128,9 +152,8 @@ export default async function handler(req, res) {
       };
     }
 
-    // If some files were skipped only due to URL length, add a note to the summary
     if (skippedDesignFiles.length > 0) {
-      const note = `Design files not attached (too large for Notion URL limit): ${skippedDesignFiles.join(', ')}`;
+      const note = `Design files not attached (upload failed or too large): ${skippedDesignFiles.join(', ')}`;
       finalSummary = `${summary || ''}\n\n${note}`.substring(0, 2000);
     }
 

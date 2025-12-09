@@ -930,13 +930,13 @@ export default function CTBSAdminDashboard() {
   const addAddOn = () => {
     setProductForm({
       ...productForm,
-      addOns: [...productForm.addOns, { name: '', price: '' }],
+      addOns: [...productForm.addOns, { name: '', price: '', variation: '' }],
     });
   };
 
   const updateAddOn = (index, field, value) => {
     const updated = [...productForm.addOns];
-    updated[index][field] = value;
+    updated[index] = { ...updated[index], [field]: value };
     setProductForm({ ...productForm, addOns: updated });
   };
 
@@ -1043,7 +1043,14 @@ export default function CTBSAdminDashboard() {
         return !!variation && variation.printMethods && variation.printMethods.length > 0;
       case 'addOns':
         return selectedProduct?.addOns && selectedProduct.addOns.length > 0;
-      case 'design':
+      case 'design': {
+        if (!variation?.printMethods?.length) return false;
+        if (kioskSelections.printMethod === null) return false;
+        const chosenMethod = variation.printMethods[kioskSelections.printMethod];
+        if (!chosenMethod) return false;
+        const name = (chosenMethod.name || '').trim().toLowerCase();
+        return name !== 'no print';
+      }
       case 'summary':
       case 'quantity':
       case 'notes':
@@ -1238,7 +1245,11 @@ export default function CTBSAdminDashboard() {
       printMethod: printMethod?.name || '',
       printSize: printSize ? printSize.name : '',
       addOns: kioskSelections.addOns
-        .map((idx) => selectedProduct.addOns[idx]?.name)
+        .map((idx) => {
+          const addOn = selectedProduct.addOns[idx];
+          if (!addOn) return null;
+          return addOn.variation ? `${addOn.name} (${addOn.variation})` : addOn.name;
+        })
         .filter(Boolean),
       quantity: normalizedQuantity,
       isCustomSize: kioskSelections.size === 'custom',
@@ -1734,7 +1745,12 @@ export default function CTBSAdminDashboard() {
                           <Check size={14} className="text-white" />
                         )}
                       </div>
-                      <span className="font-medium text-sm">{addOn.name}</span>
+                      <div className="flex flex-col">
+                        <span className="font-medium text-sm">{addOn.name}</span>
+                        {addOn.variation ? (
+                          <span className="text-xs text-gray-500">{addOn.variation}</span>
+                        ) : null}
+                      </div>
                     </div>
 
                     <span className="text-blue-600 font-semibold text-sm">
@@ -1957,10 +1973,11 @@ export default function CTBSAdminDashboard() {
               : variation && kioskSelections.size !== null
               ? variation.sizes[kioskSelections.size]?.name
               : '';
-          const addOnNames =
-            selectedProduct?.addOns
-              ?.filter((_, idx) => kioskSelections.addOns.includes(idx))
-              .map((a) => a.name) || [];
+      const addOnNames =
+        selectedProduct?.addOns
+          ?.filter((_, idx) => kioskSelections.addOns.includes(idx))
+          .map((a) => a.variation ? `${a.name} (${a.variation})` : a.name)
+          .filter(Boolean) || [];
           const designNames = kioskSelections.designFiles.map((file) => file.name).filter(Boolean);
 
           return (
@@ -3536,6 +3553,13 @@ export default function CTBSAdminDashboard() {
                       updateAddOn(index, 'name', e.target.value)
                     }
                     placeholder="Add-on name"
+                    className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                  />
+                  <input
+                    type="text"
+                    value={addOn.variation || ''}
+                    onChange={(e) => updateAddOn(index, 'variation', e.target.value)}
+                    placeholder="Variation detail (optional)"
                     className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
                   />
                   <div className="relative">
