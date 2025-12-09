@@ -131,6 +131,16 @@ async function uploadImageToCloudinary(file) {
 }
 
 export default function CTBSAdminDashboard() {
+  const AddIcon = ({ className = 'w-4 h-4' }) => (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 640 640"
+      className={className}
+      aria-hidden="true"
+    >
+      <path d="M320 576C461.4 576 576 461.4 576 320C576 178.6 461.4 64 320 64C178.6 64 64 178.6 64 320C64 461.4 178.6 576 320 576zM296 408L296 344L232 344C218.7 344 208 333.3 208 320C208 306.7 218.7 296 232 296L296 296L296 232C296 218.7 306.7 208 320 208C333.3 208 344 218.7 344 232L344 296L408 296C421.3 296 432 306.7 432 320C432 333.3 421.3 344 408 344L344 344L344 408C344 421.3 333.3 432 320 432C306.7 432 296 421.3 296 408z" />
+    </svg>
+  );
   const [currentView, setCurrentView] = useState('admin');
   const [logo, setLogo] = useState('');
   const [products, setProducts] = useState([]);
@@ -1710,12 +1720,19 @@ export default function CTBSAdminDashboard() {
                           : 'border-gray-200 hover:border-gray-300'
                       }`}
                     >
-                      <span className="font-medium text-sm">{method.name}</span>
-                      {method.printSizes && method.printSizes.length > 0 && (
-                        <p className="text-xs text-gray-500 mt-1">
-                          Sizes: {method.printSizes.map((s) => s.name).join(', ')}
-                        </p>
-                      )}
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1">
+                          <span className="font-medium text-sm">{method.name}</span>
+                          {method.printSizes && method.printSizes.length > 0 && (
+                            <p className="text-xs text-gray-500 mt-1">
+                              Sizes: {method.printSizes.map((s) => s.name).join(', ')}
+                            </p>
+                          )}
+                        </div>
+                        <div className="w-7 h-7 bg-[#0167FF] text-white rounded-full flex items-center justify-center">
+                          <AddIcon className="w-3.5 h-3.5 fill-current" />
+                        </div>
+                      </div>
                     </button>
                     {kioskSelections.printMethod === idx &&
                       method.printSizes &&
@@ -1793,9 +1810,14 @@ export default function CTBSAdminDashboard() {
                           <span className="font-medium text-sm">{addOn.name}</span>
                         </div>
 
-                        <span className="text-blue-600 font-semibold text-sm">
-                          +₱{parseFloat(addOn.price).toLocaleString()}
-                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-blue-600 font-semibold text-sm">
+                            +₱{parseFloat(addOn.price).toLocaleString()}
+                          </span>
+                          <div className="w-7 h-7 bg-[#0167FF] text-white rounded-full flex items-center justify-center">
+                            <AddIcon className="w-3.5 h-3.5 fill-current" />
+                          </div>
+                        </div>
                       </button>
 
                       {isSelected && hasVariations && (
@@ -2420,16 +2442,8 @@ export default function CTBSAdminDashboard() {
                     </h3>
                   </div>
 
-                  <div className="absolute bottom-3 right-3 flex items-center gap-1 bg-[#0167FF] text-white px-2 py-1 rounded-full text-xs font-semibold shadow-md">
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      viewBox="0 0 640 640"
-                      className="w-3.5 h-3.5 fill-current"
-                      aria-hidden="true"
-                    >
-                      <path d="M320 576C461.4 576 576 461.4 576 320C576 178.6 461.4 64 320 64C178.6 64 64 178.6 64 320C64 461.4 178.6 576 320 576zM296 408L296 344L232 344C218.7 344 208 333.3 208 320C208 306.7 218.7 296 232 296L296 296L296 232C296 218.7 306.7 208 320 208C333.3 208 344 218.7 344 232L344 296L408 296C421.3 296 432 306.7 432 320C432 333.3 421.3 344 408 344L344 344L344 408C344 421.3 333.3 432 320 432C306.7 432 296 421.3 296 408z" />
-                    </svg>
-                    <span>Add</span>
+                  <div className="absolute bottom-3 right-3 flex items-center justify-center bg-[#0167FF] text-white w-8 h-8 rounded-full shadow-md">
+                    <AddIcon className="w-3.5 h-3.5 fill-current" />
                   </div>
                 </div>
               ))}
