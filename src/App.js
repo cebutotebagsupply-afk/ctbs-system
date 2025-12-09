@@ -157,6 +157,7 @@ export default function CTBSAdminDashboard() {
     printMethod: null,
     printSize: null,
     addOns: [],
+    addOnDetails: {},
     quantity: 1,
     designFiles: [],
     specialInstructions: '',
@@ -930,13 +931,46 @@ export default function CTBSAdminDashboard() {
   const addAddOn = () => {
     setProductForm({
       ...productForm,
-      addOns: [...productForm.addOns, { name: '', price: '', variation: '' }],
+      addOns: [...productForm.addOns, { name: '', price: '', materials: [], colors: [] }],
     });
   };
 
   const updateAddOn = (index, field, value) => {
     const updated = [...productForm.addOns];
-    updated[index] = { ...updated[index], [field]: value };
+    updated[index][field] = value;
+    setProductForm({ ...productForm, addOns: updated });
+  };
+
+  const addMaterialToAddOn = (index) => {
+    const updated = [...productForm.addOns];
+    if (!updated[index].materials) updated[index].materials = [];
+    updated[index].materials.push('');
+    setProductForm({ ...productForm, addOns: updated });
+  };
+
+  const updateAddOnMaterial = (addOnIndex, matIndex, value) => {
+    const updated = [...productForm.addOns];
+    if (!updated[addOnIndex].materials) updated[addOnIndex].materials = [];
+    updated[addOnIndex].materials[matIndex] = value;
+    setProductForm({ ...productForm, addOns: updated });
+  };
+
+  const removeAddOnMaterial = (addOnIndex, matIndex) => {
+    const updated = [...productForm.addOns];
+    updated[addOnIndex].materials = (updated[addOnIndex].materials || []).filter((_, i) => i !== matIndex);
+    setProductForm({ ...productForm, addOns: updated });
+  };
+
+  const addColorToAddOn = (index, color, colorName) => {
+    const updated = [...productForm.addOns];
+    if (!updated[index].colors) updated[index].colors = [];
+    updated[index].colors.push({ hex: color, name: colorName });
+    setProductForm({ ...productForm, addOns: updated });
+  };
+
+  const removeColorFromAddOn = (addOnIndex, colorIndex) => {
+    const updated = [...productForm.addOns];
+    updated[addOnIndex].colors = (updated[addOnIndex].colors || []).filter((_, i) => i !== colorIndex);
     setProductForm({ ...productForm, addOns: updated });
   };
 
@@ -1248,7 +1282,10 @@ export default function CTBSAdminDashboard() {
         .map((idx) => {
           const addOn = selectedProduct.addOns[idx];
           if (!addOn) return null;
-          return addOn.variation ? `${addOn.name} (${addOn.variation})` : addOn.name;
+          const detail = kioskSelections.addOnDetails?.[idx];
+          const material = detail?.material ? ` · ${detail.material}` : '';
+          const color = detail?.colorName ? ` · ${detail.colorName}` : '';
+          return `${addOn.name}${material}${color}`;
         })
         .filter(Boolean),
       quantity: normalizedQuantity,
@@ -1286,6 +1323,7 @@ export default function CTBSAdminDashboard() {
       printMethod: null,
       printSize: null,
       addOns: [],
+      addOnDetails: {},
       quantity: 1,
       designFiles: [],
       specialInstructions: '',
@@ -1725,6 +1763,10 @@ export default function CTBSAdminDashboard() {
                       setKioskSelections({
                         ...kioskSelections,
                         addOns: newAddOns,
+                        addOnDetails: {
+                          ...(kioskSelections.addOnDetails || {}),
+                          [idx]: kioskSelections.addOnDetails?.[idx] || {},
+                        },
                       });
                     }}
                     className={`p-3 rounded-xl border-2 text-left transition-all flex justify-between items-center hover:-translate-y-0.5 active:scale-[0.99] ${
@@ -1745,12 +1787,7 @@ export default function CTBSAdminDashboard() {
                           <Check size={14} className="text-white" />
                         )}
                       </div>
-                      <div className="flex flex-col">
-                        <span className="font-medium text-sm">{addOn.name}</span>
-                        {addOn.variation ? (
-                          <span className="text-xs text-gray-500">{addOn.variation}</span>
-                        ) : null}
-                      </div>
+                      <span className="font-medium text-sm">{addOn.name}</span>
                     </div>
 
                     <span className="text-blue-600 font-semibold text-sm">
@@ -1759,6 +1796,86 @@ export default function CTBSAdminDashboard() {
                   </button>
                 ))}
               </div>
+              {kioskSelections.addOns.map((addOnIdx) => {
+                const addOn = selectedProduct.addOns[addOnIdx];
+                if (!addOn) return null;
+                const detail = kioskSelections.addOnDetails?.[addOnIdx] || {};
+                return (
+                  <div key={`addon-detail-${addOnIdx}`} className="mt-3 p-3 border border-blue-100 rounded-lg bg-blue-50">
+                    <div className="flex flex-wrap gap-3 items-center mb-2">
+                      <span className="text-sm font-semibold text-blue-800">{addOn.name}</span>
+                    </div>
+                    <div className="flex flex-col gap-3 sm:flex-row sm:gap-4">
+                      {addOn.materials?.length > 0 && (
+                        <div className="flex-1 space-y-1">
+                          <label className="text-xs font-medium text-blue-800">Material</label>
+                          <select
+                            value={detail.material || ''}
+                            onChange={(e) =>
+                              setKioskSelections((prev) => ({
+                                ...prev,
+                                addOnDetails: {
+                                  ...(prev.addOnDetails || {}),
+                                  [addOnIdx]: {
+                                    ...(prev.addOnDetails?.[addOnIdx] || {}),
+                                    material: e.target.value,
+                                  },
+                                },
+                              }))
+                            }
+                            className="w-full px-3 py-2 border border-blue-200 rounded-lg focus:border-blue-500 focus:ring-0 text-sm bg-white"
+                          >
+                            <option value="">Select</option>
+                            {addOn.materials.map((mat, matIdx) => (
+                              <option key={matIdx} value={mat}>
+                                {mat || `Material ${matIdx + 1}`}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
+
+                      {addOn.colors?.length > 0 && (
+                        <div className="flex-1 space-y-1">
+                          <label className="text-xs font-medium text-blue-800">Color</label>
+                          <div className="flex flex-wrap gap-2">
+                            {addOn.colors.map((color, cIdx) => (
+                              <button
+                                key={cIdx}
+                                onClick={(ev) => {
+                                  ev.preventDefault();
+                                  setKioskSelections((prev) => ({
+                                    ...prev,
+                                    addOnDetails: {
+                                      ...(prev.addOnDetails || {}),
+                                      [addOnIdx]: {
+                                        ...(prev.addOnDetails?.[addOnIdx] || {}),
+                                        color: color.hex,
+                                        colorName: color.name,
+                                      },
+                                    },
+                                  }));
+                                }}
+                                className={`flex items-center gap-2 px-3 py-2 rounded-full border-2 text-xs transition-all hover:-translate-y-0.5 active:scale-[0.99] ${
+                                  detail.color === color.hex
+                                    ? 'border-blue-500 bg-blue-50'
+                                    : 'border-blue-100 hover:border-blue-200'
+                                }`}
+                              >
+                                <span
+                                  className="w-5 h-5 rounded-full border"
+                                  style={{ backgroundColor: color.hex }}
+                                />
+                                <span>{color.name}</span>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           );
         case 'design':
@@ -1976,7 +2093,12 @@ export default function CTBSAdminDashboard() {
       const addOnNames =
         selectedProduct?.addOns
           ?.filter((_, idx) => kioskSelections.addOns.includes(idx))
-          .map((a) => a.variation ? `${a.name} (${a.variation})` : a.name)
+          .map((a, idx) => {
+            const detail = kioskSelections.addOnDetails?.[idx];
+            const material = detail?.material ? ` · ${detail.material}` : '';
+            const color = detail?.colorName ? ` · ${detail.colorName}` : '';
+            return `${a.name}${material}${color}`;
+          })
           .filter(Boolean) || [];
           const designNames = kioskSelections.designFiles.map((file) => file.name).filter(Boolean);
 
@@ -3545,43 +3667,133 @@ export default function CTBSAdminDashboard() {
             </div>
             <div className="space-y-2">
               {productForm.addOns.map((addOn, index) => (
-                <div key={index} className="flex gap-2 items-center">
-                  <input
-                    type="text"
-                    value={addOn.name}
-                    onChange={(e) =>
-                      updateAddOn(index, 'name', e.target.value)
-                    }
-                    placeholder="Add-on name"
-                    className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
-                  />
-                  <input
-                    type="text"
-                    value={addOn.variation || ''}
-                    onChange={(e) => updateAddOn(index, 'variation', e.target.value)}
-                    placeholder="Variation detail (optional)"
-                    className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
-                  />
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">
-                      ₱
-                    </span>
+                <div key={index} className="space-y-2 p-3 border border-gray-200 rounded-lg bg-white">
+                  <div className="flex flex-wrap gap-2 items-center">
                     <input
-                      type="number"
-                      value={addOn.price}
+                      type="text"
+                      value={addOn.name}
                       onChange={(e) =>
-                        updateAddOn(index, 'price', e.target.value)
+                        updateAddOn(index, 'name', e.target.value)
                       }
-                      placeholder="Price"
-                      className="w-32 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none pl-7"
+                      placeholder="Add-on name"
+                      className="flex-1 min-w-[180px] px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
                     />
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">
+                        ₱
+                      </span>
+                      <input
+                        type="number"
+                        value={addOn.price}
+                        onChange={(e) =>
+                          updateAddOn(index, 'price', e.target.value)
+                        }
+                        placeholder="Price"
+                        className="w-32 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none pl-7"
+                      />
+                    </div>
+                    <button
+                      onClick={() => removeAddOn(index)}
+                      className="text-red-500 hover:text-red-700"
+                    >
+                      <X size={18} />
+                    </button>
                   </div>
-                  <button
-                    onClick={() => removeAddOn(index)}
-                    className="text-red-500 hover:text-red-700"
-                  >
-                    <X size={18} />
-                  </button>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div>
+                      <div className="flex justify-between items-center mb-1">
+                        <span className="text-sm font-medium text-gray-700">Materials</span>
+                        <button
+                          type="button"
+                          onClick={() => addMaterialToAddOn(index)}
+                          className="text-blue-600 hover:text-blue-700 text-sm"
+                        >
+                          <Plus size={14} /> Add
+                        </button>
+                      </div>
+                      <div className="space-y-2">
+                        {(addOn.materials || []).map((mat, matIdx) => (
+                          <div key={matIdx} className="flex items-center gap-2">
+                            <input
+                              type="text"
+                              value={mat}
+                              onChange={(e) => updateAddOnMaterial(index, matIdx, e.target.value)}
+                              placeholder="Material name"
+                              className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-sm"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => removeAddOnMaterial(index, matIdx)}
+                              className="text-red-500 hover:text-red-700"
+                            >
+                              <X size={16} />
+                            </button>
+                          </div>
+                        ))}
+                        {(!addOn.materials || addOn.materials.length === 0) && (
+                          <p className="text-xs text-gray-500">No materials. Add some to show on kiosk.</p>
+                        )}
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="flex justify-between items-center mb-1">
+                        <span className="text-sm font-medium text-gray-700">Colors</span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const colorPicker = document.getElementById(`addon-color-${index}`);
+                            const colorName = document.getElementById(`addon-color-name-${index}`);
+                            if (colorPicker && colorName && colorName.value) {
+                              addColorToAddOn(index, colorPicker.value, colorName.value);
+                              colorName.value = '';
+                            }
+                          }}
+                          className="text-blue-600 hover:text-blue-700 text-sm"
+                        >
+                          <Plus size={14} /> Add
+                        </button>
+                      </div>
+                      <div className="flex items-center gap-2 mb-2">
+                        <input
+                          type="color"
+                          id={`addon-color-${index}`}
+                          className="w-12 h-10 border border-gray-300 rounded cursor-pointer"
+                        />
+                        <input
+                          type="text"
+                          id={`addon-color-name-${index}`}
+                          placeholder="Color name"
+                          className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-sm"
+                        />
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {(addOn.colors || []).map((color, colorIdx) => (
+                          <div
+                            key={colorIdx}
+                            className="flex items-center gap-2 bg-white px-3 py-1 rounded-lg border"
+                          >
+                            <span
+                              className="w-5 h-5 rounded border"
+                              style={{ backgroundColor: color.hex }}
+                            />
+                            <span className="text-sm">{color.name}</span>
+                            <button
+                              type="button"
+                              onClick={() => removeColorFromAddOn(index, colorIdx)}
+                              className="text-red-500 hover:text-red-700"
+                            >
+                              <X size={14} />
+                            </button>
+                          </div>
+                        ))}
+                        {(!addOn.colors || addOn.colors.length === 0) && (
+                          <p className="text-xs text-gray-500">No colors. Add some to show on kiosk.</p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
                 </div>
               ))}
             </div>
