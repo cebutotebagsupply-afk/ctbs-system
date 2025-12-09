@@ -2118,7 +2118,7 @@ export default function CTBSAdminDashboard() {
                   <img
                     src={displayLogo}
                     alt="Logo"
-                    className="h-10 object-contain max-w-[140px]"
+                    className="h-10 object-contain max-w-[50px]"
                   />
                 ) : (
                   <h1 className="text-xl font-bold text-gray-800">
@@ -2223,6 +2223,17 @@ export default function CTBSAdminDashboard() {
           )}
         </div>
 
+        <div className="px-4 pb-6">
+          <div className="mx-auto w-full max-w-[320px] flex items-center justify-center gap-2 text-xs text-gray-500">
+            <img
+              src="https://res.cloudinary.com/dvlwr8kro/image/upload/v1765252313/f5836tbpb8tzf0n5jndr.svg"
+              alt="Footer logo"
+              className="h-auto max-w-[15px] object-contain"
+            />
+            <span>Cebu Tote Bag Supply</span>
+          </div>
+        </div>
+
         {showCustomizeModal && renderKioskCustomizeModal()}
 
         {showConfirmation && currentView === 'kiosk' && (
@@ -2233,8 +2244,11 @@ export default function CTBSAdminDashboard() {
                 alt="Celebration"
                 className="w-40 h-40 mx-auto max-w-full rounded-[20px] object-cover shadow-lg border-4 border-white/50"
               />
-              <h2 className="text-3xl font-bold">Success! Your order is in. 🎉</h2>
-              <p className="text-base text-white/90 leading-relaxed">
+              <h2 className="text-3xl font-bold leading-tight">
+                Success!<br />
+                Your order is in. 🎉
+              </h2>
+              <p className="text-base text-white/90" style={{ lineHeight: '1.2' }}>
                 We’re excited to work with you!<br />
                 Expect a message from us on Messenger soon so we can review your order and confirm everything.
               </p>
