@@ -73,11 +73,15 @@ export default async function handler(req, res) {
       allDesignFiles.push(designFile);
     }
 
+    const MAX_BYTES = 5 * 1024 * 1024;
+
     for (const file of allDesignFiles) {
       if (!file?.data) continue;
+      const reportedSize = Number(file.size) || 0;
       const base64Data = file.data.split(',')[1] || '';
       const estimatedBytes = Math.ceil((base64Data.length * 3) / 4);
-      if (estimatedBytes > 5 * 1024 * 1024) {
+      const effectiveSize = reportedSize || estimatedBytes;
+      if (effectiveSize > MAX_BYTES) {
         return res.status(400).json({ error: `Design file "${file.name || 'File'}" exceeds 5MB limit` });
       }
       designFilePayloads.push({

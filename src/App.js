@@ -273,7 +273,7 @@ export default function CTBSAdminDashboard() {
             : []
           ).map((file) =>
             file?.data
-              ? { data: file.data, name: file.name, type: file.type }
+              ? { data: file.data, name: file.name, type: file.type, size: file.size }
               : null
           )
         )
@@ -1129,6 +1129,7 @@ export default function CTBSAdminDashboard() {
             name: file.name,
             data: event.target.result,
             type: file.type,
+            size: file.size,
           });
         };
         reader.onerror = () => reject(new Error('Failed to read file'));
