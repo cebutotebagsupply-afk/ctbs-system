@@ -74,6 +74,9 @@ export default async function handler(req, res) {
     }
 
     const MAX_BYTES = 5 * 1024 * 1024;
+    const MAX_URL_LENGTH = 1900; // Notion rejects external URLs longer than ~2000 chars
+
+    const skippedDesignFiles = [];
 
     for (const file of allDesignFiles) {
       if (!file?.data) continue;
@@ -83,6 +86,11 @@ export default async function handler(req, res) {
       const effectiveSize = reportedSize || estimatedBytes;
       if (effectiveSize > MAX_BYTES) {
         return res.status(400).json({ error: `Design file "${file.name || 'File'}" exceeds 5MB limit` });
+      }
+
+      if ((file.data || '').length > MAX_URL_LENGTH) {
+        skippedDesignFiles.push(file.name || 'Design File');
+        continue;
       }
       designFilePayloads.push({
         type: 'external',
@@ -96,6 +104,19 @@ export default async function handler(req, res) {
     if (designFilePayloads.length > 0) {
       properties['Design File'] = {
         files: designFilePayloads,
+      };
+    }
+
+    if (skippedDesignFiles.length > 0) {
+      const note = `Design files not attached (too large for Notion URL limit): ${skippedDesignFiles.join(', ')}`;
+      properties['Design File Note'] = {
+        rich_text: [
+          {
+            text: {
+              content: note.substring(0, 2000),
+            },
+          },
+        ],
       };
     }
 
