@@ -158,7 +158,7 @@ export default function CTBSAdminDashboard() {
     printSize: null,
     addOns: [],
     quantity: 1,
-    designFile: null,
+    designFiles: [],
     specialInstructions: '',
   });
 
@@ -208,6 +208,9 @@ export default function CTBSAdminDashboard() {
   const [showGreeting, setShowGreeting] = useState(true);
   const [isGreetingClosing, setIsGreetingClosing] = useState(false);
   const [showConfirmation, setShowConfirmation] = useState(false);
+  const [isAdminAuthenticated, setIsAdminAuthenticated] = useState(false);
+  const [adminPasswordInput, setAdminPasswordInput] = useState('');
+  const [adminAuthError, setAdminAuthError] = useState('');
 
   const handleStartKiosk = () => {
     setIsGreetingClosing(true);
@@ -216,6 +219,25 @@ export default function CTBSAdminDashboard() {
       setShowGreeting(false);
       setIsGreetingClosing(false);
     }, 400);
+  };
+
+  const handleAdminLogin = (event) => {
+    event?.preventDefault?.();
+    if (adminPasswordInput === '1234') {
+      setIsAdminAuthenticated(true);
+      setAdminAuthError('');
+    } else {
+      setAdminAuthError('Incorrect password. Please try again.');
+    }
+  };
+
+  const handleAdminLogout = () => {
+    setIsAdminAuthenticated(false);
+    setAdminPasswordInput('');
+    setAdminAuthError('');
+    setShowProductModal(false);
+    setShowMediaLibrary(false);
+    setDeleteConfirmProduct(null);
   };
 
   const handleSubmitOrder = async () => {
@@ -243,21 +265,26 @@ export default function CTBSAdminDashboard() {
 
       const summary = buildOrderSummary();
       const designFiles = cart
-        .map((item) =>
-          item.designFile?.data
-            ? { data: item.designFile.data, name: item.designFile.name, type: item.designFile.type }
-            : null
+        .flatMap((item) =>
+          ((item.designFiles && item.designFiles.length > 0)
+            ? item.designFiles
+            : item.designFile
+            ? [item.designFile]
+            : []
+          ).map((file) =>
+            file?.data
+              ? { data: file.data, name: file.name, type: file.type }
+              : null
+          )
         )
         .filter(Boolean);
-
-      const designFile = designFiles[0] || null;
 
       const response = await fetch('/api/createOrder', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           summary,
-          designFile,
+          designFiles,
           customerName: checkoutForm.name,
         }),
       });
@@ -424,6 +451,19 @@ export default function CTBSAdminDashboard() {
       setIsGreetingClosing(false);
     }
   }, [currentView]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const storedAuth = localStorage.getItem('ctbs-admin-authenticated');
+    if (storedAuth === 'true') {
+      setIsAdminAuthenticated(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    localStorage.setItem('ctbs-admin-authenticated', isAdminAuthenticated ? 'true' : 'false');
+  }, [isAdminAuthenticated]);
 
   // Save logo whenever it changes (only after initialization)
   useEffect(() => {
@@ -1029,7 +1069,10 @@ export default function CTBSAdminDashboard() {
       printSize: cartItem?.selections?.printSize ?? null,
       addOns: cartItem?.selections?.addOns ?? [],
       quantity: normalizeQuantity(cartItem?.selections?.quantity ?? 1),
-      designFile: cartItem?.selections?.designFile ?? null,
+      designFiles:
+        cartItem?.selections?.designFiles ??
+        cartItem?.designFiles ??
+        (cartItem?.designFile ? [cartItem.designFile] : []),
       specialInstructions: cartItem?.selections?.specialInstructions ?? '',
     };
     setSelectedProduct(product);
@@ -1048,31 +1091,50 @@ export default function CTBSAdminDashboard() {
     return Number.isFinite(parsed) && parsed > 0 ? parsed : 1;
   };
 
-  const handleDesignFileUpload = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      const validTypes = ['application/pdf', 'image/png', 'image/jpeg'];
-      if (!validTypes.includes(file.type)) {
-        alert('Please upload a PDF, PNG, or JPEG file');
-        return;
-      }
-      if (file.size > 5 * 1024 * 1024) {
-        alert('File is too large. Please upload a file up to 5MB.');
-        e.target.value = '';
-        return;
-      }
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        setKioskSelections({
-          ...kioskSelections,
-          designFile: {
+  const handleDesignFileUpload = async (e) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+
+    const validTypes = ['application/pdf', 'image/png', 'image/jpeg'];
+    const maxSizeBytes = 5 * 1024 * 1024;
+
+    const readFile = (file) =>
+      new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          resolve({
             name: file.name,
             data: event.target.result,
             type: file.type,
-          },
-        });
-      };
-      reader.readAsDataURL(file);
+          });
+        };
+        reader.onerror = () => reject(new Error('Failed to read file'));
+        reader.readAsDataURL(file);
+      });
+
+    try {
+      const processed = [];
+      for (const file of files) {
+        if (!validTypes.includes(file.type)) {
+          alert(`"${file.name}" is not a PDF, PNG, or JPEG.`);
+          continue;
+        }
+        if (file.size > maxSizeBytes) {
+          alert(`"${file.name}" is too large. Please upload files up to 5MB each.`);
+          continue;
+        }
+        const parsed = await readFile(file);
+        processed.push(parsed);
+      }
+
+      if (processed.length > 0) {
+        setKioskSelections((prev) => ({
+          ...prev,
+          designFiles: [...prev.designFiles, ...processed],
+        }));
+      }
+    } finally {
+      e.target.value = '';
     }
   };
 
@@ -1122,7 +1184,7 @@ export default function CTBSAdminDashboard() {
         .filter(Boolean),
       quantity: normalizedQuantity,
       isCustomSize: kioskSelections.size === 'custom',
-      designFile: kioskSelections.designFile,
+      designFiles: kioskSelections.designFiles,
       specialInstructions: kioskSelections.specialInstructions,
       selections: {
         variation: kioskSelections.variation,
@@ -1133,7 +1195,7 @@ export default function CTBSAdminDashboard() {
         printSize: kioskSelections.printSize,
         addOns: kioskSelections.addOns,
         quantity: normalizedQuantity,
-        designFile: kioskSelections.designFile,
+        designFiles: kioskSelections.designFiles,
         specialInstructions: kioskSelections.specialInstructions,
       },
     };
@@ -1156,7 +1218,7 @@ export default function CTBSAdminDashboard() {
       printSize: null,
       addOns: [],
       quantity: 1,
-      designFile: null,
+      designFiles: [],
       specialInstructions: '',
     });
     if (action === 'orders') {
@@ -1199,7 +1261,20 @@ export default function CTBSAdminDashboard() {
       if (item.addOns?.length) lines.push(`• Add-ons: ${item.addOns.join(', ')}`);
       lines.push(`• Quantity: ${item.quantity || 1}`);
       if (item.specialInstructions) lines.push(`• Instruction: ${item.specialInstructions}`);
-      if (item.designFile?.name) lines.push(`• Design file: ${item.designFile.name}`);
+      const designFiles = (item.designFiles && item.designFiles.length > 0)
+        ? item.designFiles
+        : item.designFile
+        ? [item.designFile]
+        : [];
+
+      const designNames = designFiles
+        .map((file) => file?.name)
+        .filter(Boolean);
+      if (designNames.length) {
+        lines.push(
+          `• Design file${designNames.length > 1 ? 's' : ''}: ${designNames.join(', ')}`
+        );
+      }
     });
 
     return lines.join('\n');
@@ -1231,18 +1306,23 @@ export default function CTBSAdminDashboard() {
     const availableSteps = CUSTOMIZE_STEPS.filter((step) =>
       isStepAvailable(step.id, selectedProduct, variation)
     );
-    const currentStep = CUSTOMIZE_STEPS[kioskStep] || availableSteps[0];
+    const rawCurrentStep = CUSTOMIZE_STEPS[kioskStep] || availableSteps[0];
+    const currentStep =
+      availableSteps.find((s) => s.id === rawCurrentStep?.id) || availableSteps[0];
+    const currentStepIndex = CUSTOMIZE_STEPS.findIndex(
+      (s) => s.id === currentStep?.id
+    );
     const currentPosition =
       availableSteps.findIndex((s) => s.id === currentStep?.id) + 1;
     const totalSteps = availableSteps.length || 1;
     const nextStepIndex = getNextStepIndex(
-      kioskStep,
+      currentStepIndex,
       'forward',
       selectedProduct,
       variation
     );
     const prevStepIndex = getNextStepIndex(
-      kioskStep,
+      currentStepIndex,
       'backward',
       selectedProduct,
       variation
@@ -1277,7 +1357,7 @@ export default function CTBSAdminDashboard() {
             kioskSelections.addOns.length === 0
           );
         case 'design':
-          return !kioskSelections.designFile;
+          return kioskSelections.designFiles.length === 0;
         case 'notes':
           return !kioskSelections.specialInstructions.trim();
         default:
@@ -1326,7 +1406,7 @@ export default function CTBSAdminDashboard() {
         size: 'Please select a size to continue.',
         print: 'Please choose a print option to continue.',
         addOns: 'Please pick at least one add-on to continue.',
-        design: 'Please upload a design file to continue.',
+        design: 'Please upload at least one design file to continue.',
         notes: 'Please add special instructions to continue.',
       }[currentStep.id];
 
@@ -1360,7 +1440,7 @@ export default function CTBSAdminDashboard() {
                 {selectedProduct?.variations.map((v, idx) => (
                   <button
                     key={idx}
-                    onClick={() =>
+                    onClick={() => {
                       setKioskSelections({
                         ...kioskSelections,
                         variation: idx,
@@ -1369,8 +1449,13 @@ export default function CTBSAdminDashboard() {
                         customSize: '',
                         printMethod: null,
                         printSize: null,
-                      })
-                    }
+                      });
+
+                      const targetVariation = selectedProduct?.variations?.[idx];
+                      if (!isStepAvailable(currentStep.id, selectedProduct, targetVariation)) {
+                        setKioskStep(getFirstAvailableStep(selectedProduct, targetVariation));
+                      }
+                    }}
                     className={`p-3 rounded-xl border-2 text-left transition-all hover:-translate-y-0.5 active:scale-[0.99] ${
                       kioskSelections.variation === idx
                         ? 'border-blue-500 bg-blue-50'
@@ -1627,42 +1712,48 @@ export default function CTBSAdminDashboard() {
                 <input
                   type="file"
                   accept=".pdf,.png,.jpeg,.jpg"
+                  multiple
                   onChange={handleDesignFileUpload}
                   className="hidden"
                   id="design-file-upload"
                 />
                 <label htmlFor="design-file-upload" className="cursor-pointer">
-                  {kioskSelections.designFile ? (
-                    <div className="flex items-center justify-center gap-2 text-blue-600">
-                      <Package size={22} />
-                      <span className="font-medium text-sm">
-                        {kioskSelections.designFile.name}
-                      </span>
-                      <button
-                        onClick={(e) => {
-                          e.preventDefault();
-                          setKioskSelections({
-                            ...kioskSelections,
-                            designFile: null,
-                          });
-                        }}
-                        className="text-red-500 hover:text-red-700 ml-2"
-                      >
-                        <X size={18} />
-                      </button>
-                    </div>
-                  ) : (
-                    <>
-                      <Upload size={28} className="mx-auto text-gray-400 mb-2" />
-                      <p className="text-gray-700 font-medium mb-1 text-sm">
-                        Click to upload design
-                      </p>
-                      <p className="text-xs text-gray-500">
-                        PDF, PNG, or JPEG (Max 5MB)
-                      </p>
-                    </>
-                  )}
+                  <div className="flex flex-col items-center">
+                    <Upload size={28} className="mx-auto text-gray-400 mb-2" />
+                    <p className="text-gray-700 font-medium mb-1 text-sm">
+                      Click to upload design files
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      PDF, PNG, or JPEG · Max 5MB each · Multiple files allowed
+                    </p>
+                  </div>
                 </label>
+                {kioskSelections.designFiles.length > 0 && (
+                  <div className="mt-4 flex flex-wrap gap-2 justify-center">
+                    {kioskSelections.designFiles.map((file, idx) => (
+                      <span
+                        key={`${file.name}-${idx}`}
+                        className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-100 text-xs"
+                      >
+                        <Package size={14} />
+                        {file.name}
+                        <button
+                          onClick={(event) => {
+                            event.preventDefault();
+                            setKioskSelections((prev) => ({
+                              ...prev,
+                              designFiles: prev.designFiles.filter((_, fileIdx) => fileIdx !== idx),
+                            }));
+                          }}
+                          className="text-blue-600 hover:text-blue-800"
+                          aria-label="Remove file"
+                        >
+                          <X size={14} />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           );
@@ -1784,6 +1875,7 @@ export default function CTBSAdminDashboard() {
             selectedProduct?.addOns
               ?.filter((_, idx) => kioskSelections.addOns.includes(idx))
               .map((a) => a.name) || [];
+          const designNames = kioskSelections.designFiles.map((file) => file.name).filter(Boolean);
 
           return (
             <div className="space-y-4">
@@ -1849,9 +1941,9 @@ export default function CTBSAdminDashboard() {
                 </div>
                 <div className="border-t border-blue-100" />
                 <div className="flex justify-between text-gray-700">
-                  <span>Design file</span>
+                  <span>Design files</span>
                   <span className="text-right">
-                    {kioskSelections.designFile ? kioskSelections.designFile.name : 'None'}
+                    {designNames.length > 0 ? designNames.join(', ') : 'None'}
                   </span>
                 </div>
                 <div className="border-t border-blue-100" />
@@ -1973,7 +2065,11 @@ export default function CTBSAdminDashboard() {
           >
             <div className="pointer-events-none mb-6">
               <div className="h-44 w-44 rounded-full bg-white/10 border border-white/20 flex items-center justify-center shadow-lg backdrop-blur">
-                <Package size={64} className="text-white/80" />
+                <img
+                  src="https://res.cloudinary.com/dvlwr8kro/image/upload/v1765252313/f5836tbpb8tzf0n5jndr.svg"
+                  alt="Welcome illustration"
+                  className="h-28 w-28 object-contain"
+                />
               </div>
             </div>
             <div className="text-center space-y-2" style={{ animation: 'fadeIn 0.4s ease' }}>
@@ -2107,9 +2203,9 @@ export default function CTBSAdminDashboard() {
           <div className="fixed inset-0 bg-[#0167FF] flex items-center justify-center z-50 px-6 text-center text-white">
             <div className="space-y-4 max-w-md" style={{ animation: 'fadeIn 0.35s ease' }}>
               <img
-                src="https://media.giphy.com/media/7yORCExjS87Jk10xSU/giphy.gif?cid=790b7611mzhatd71vqspu3l37xq9v7m4zgp9yomlbt3ank67&ep=v1_gifs_search&rid=giphy.gif&ct=g"
+                src="https://media.giphy.com/media/v1.Y2lkPWVjZjA1ZTQ3c2htbXUxZGF6eXlndzdocGs2YWxra3lqbWF4b2s5N3doYTA3MmZrNiZlcD12MV9naWZzX3RyZW5kaW5nJmN0PWc/bznNJlqAi4pBC/giphy.gif"
                 alt="Celebration"
-                className="w-40 h-40 mx-auto rounded-full object-cover shadow-lg border-4 border-white/50"
+                className="w-40 h-40 mx-auto rounded-[20px] object-cover shadow-lg border-4 border-white/50"
               />
               <h2 className="text-2xl font-bold">Success! We received your order</h2>
               <p className="text-lg text-white/90">
@@ -2233,14 +2329,26 @@ export default function CTBSAdminDashboard() {
                               {item.addOns.join(', ')}
                             </p>
                           )}
-                          {item.designFile && (
-                            <p>
-                              <span className="font-medium">
-                                Design File:
-                              </span>{' '}
-                              {item.designFile.name}
-                            </p>
-                          )}
+                          {(() => {
+                            const designList =
+                              (item.designFiles && item.designFiles.length > 0)
+                                ? item.designFiles
+                                : item.designFile
+                                ? [item.designFile]
+                                : [];
+                            if (!designList.length) return null;
+                            return (
+                              <p>
+                                <span className="font-medium">
+                                  Design File{designList.length > 1 ? 's' : ''}:
+                                </span>{' '}
+                                {designList
+                                  .map((file) => file?.name)
+                                  .filter(Boolean)
+                                  .join(', ')}
+                              </p>
+                            );
+                          })()}
                           {item.specialInstructions && (
                             <p>
                               <span className="font-medium">
@@ -3383,11 +3491,48 @@ export default function CTBSAdminDashboard() {
     </div>
   );
 
-  const renderAdmin = () => (
-    <div
-      className="min-h-screen bg-gray-50 flex flex-col lg:flex-row overflow-hidden"
-      style={{ fontFamily: 'Helvetica, Arial, sans-serif' }}
-    >
+  const renderAdmin = () => {
+    if (!isAdminAuthenticated) {
+      return (
+        <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50 flex items-center justify-center px-4">
+          <div className="bg-white rounded-2xl shadow-lg border border-blue-50 p-8 w-full max-w-md space-y-6">
+            <div className="text-center space-y-2">
+              <h1 className="text-3xl font-bold text-gray-800">Admin Login</h1>
+              <p className="text-gray-500 text-sm">Enter the admin password to access the dashboard.</p>
+            </div>
+            <form className="space-y-4" onSubmit={handleAdminLogin}>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
+                <input
+                  type="password"
+                  value={adminPasswordInput}
+                  onChange={(e) => setAdminPasswordInput(e.target.value)}
+                  placeholder="Enter password"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                />
+                {adminAuthError && (
+                  <p className="text-red-600 text-sm mt-2">{adminAuthError}</p>
+                )}
+              </div>
+              <div className="flex flex-col gap-3">
+                <button
+                  type="submit"
+                  className="w-full px-4 py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors"
+                >
+                  Log In
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div
+        className="min-h-screen bg-gray-50 flex flex-col lg:flex-row overflow-hidden"
+        style={{ fontFamily: 'Helvetica, Arial, sans-serif' }}
+      >
       {deleteConfirmProduct && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
@@ -3521,28 +3666,36 @@ export default function CTBSAdminDashboard() {
                 : 'Products'}
             </h1>
           </div>
-          {adminTab === 'products' ? (
+          <div className="flex items-center gap-2">
+            {adminTab === 'products' ? (
+              <button
+                onClick={() => openProductModal()}
+                className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
+              >
+                <Plus size={18} /> Add Product
+              </button>
+            ) : adminTab === 'shipping' ? (
+              <button
+                onClick={addShippingOption}
+                className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
+              >
+                <Plus size={16} /> Add Shipping Option
+              </button>
+            ) : adminTab === 'preview' ? (
+              <button
+                onClick={handlePublishKiosk}
+                className="flex items-center gap-2 px-5 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm"
+              >
+                <Link2 size={18} /> Publish
+              </button>
+            ) : null}
             <button
-              onClick={() => openProductModal()}
-              className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
+              onClick={handleAdminLogout}
+              className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-100 transition-colors text-sm text-gray-700"
             >
-              <Plus size={18} /> Add Product
+              Log out
             </button>
-          ) : adminTab === 'shipping' ? (
-            <button
-              onClick={addShippingOption}
-              className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
-            >
-              <Plus size={16} /> Add Shipping Option
-            </button>
-          ) : adminTab === 'preview' ? (
-            <button
-              onClick={handlePublishKiosk}
-              className="flex items-center gap-2 px-5 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm"
-            >
-              <Link2 size={18} /> Publish
-            </button>
-          ) : null}
+          </div>
         </div>
 
         <div className="flex-1 w-full px-4 sm:px-6 lg:px-10 py-8 overflow-y-auto">
@@ -3755,6 +3908,7 @@ export default function CTBSAdminDashboard() {
       {showMediaLibrary && renderMediaLibrary()}
     </div>
   );
+  };
 
   return (
     <>

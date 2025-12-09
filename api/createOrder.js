@@ -23,7 +23,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { summary, designFile, customerName } = req.body;
+    const { summary, designFile, designFiles = [], customerName } = req.body;
 
     // Validate required fields
     if (!customerName || !customerName.trim()) {
@@ -64,24 +64,34 @@ export default async function handler(req, res) {
       },
     };
 
-    // Add Design File if provided (stored as data URL so Notion hosts it directly)
-    if (designFile?.data) {
-      const base64Data = designFile.data.split(',')[1] || '';
+    // Add Design Files if provided (stored as data URLs so Notion hosts them directly)
+    const designFilePayloads = [];
+    const allDesignFiles = [...designFiles];
+
+    // Backwards compatibility for single designFile payloads
+    if (designFile) {
+      allDesignFiles.push(designFile);
+    }
+
+    for (const file of allDesignFiles) {
+      if (!file?.data) continue;
+      const base64Data = file.data.split(',')[1] || '';
       const estimatedBytes = Math.ceil((base64Data.length * 3) / 4);
       if (estimatedBytes > 5 * 1024 * 1024) {
-        return res.status(400).json({ error: 'Design file exceeds 5MB limit' });
+        return res.status(400).json({ error: `Design file "${file.name || 'File'}" exceeds 5MB limit` });
       }
+      designFilePayloads.push({
+        type: 'external',
+        name: file.name || 'Design File',
+        external: {
+          url: file.data,
+        },
+      });
+    }
 
+    if (designFilePayloads.length > 0) {
       properties['Design File'] = {
-        files: [
-          {
-            type: 'external',
-            name: designFile.name || 'Design File',
-            external: {
-              url: designFile.data,
-            },
-          },
-        ],
+        files: designFilePayloads,
       };
     }
 
