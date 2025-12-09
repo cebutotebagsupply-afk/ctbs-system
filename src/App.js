@@ -1261,6 +1261,19 @@ export default function CTBSAdminDashboard() {
 
     const baseId = editingCartItemId || `cart-${Date.now()}`;
     const normalizedQuantity = normalizeQuantity(kioskSelections.quantity);
+    const addOnLabels = kioskSelections.addOns
+      .map((idx) => {
+        const addOn = selectedProduct.addOns[idx];
+        if (!addOn) return null;
+        const detail = kioskSelections.addOnDetails?.[idx];
+        const parts = [];
+        if (detail?.material) parts.push(detail.material);
+        if (detail?.colorName) parts.push(detail.colorName);
+        const suffix = parts.length ? ` (${parts.join(', ')})` : '';
+        return `${addOn.name}${suffix}`;
+      })
+      .filter(Boolean);
+
     const cartItem = {
       id: baseId,
       productId: selectedProduct.id,
@@ -1278,16 +1291,7 @@ export default function CTBSAdminDashboard() {
           : '',
       printMethod: printMethod?.name || '',
       printSize: printSize ? printSize.name : '',
-      addOns: kioskSelections.addOns
-        .map((idx) => {
-          const addOn = selectedProduct.addOns[idx];
-          if (!addOn) return null;
-          const detail = kioskSelections.addOnDetails?.[idx];
-          const material = detail?.material ? ` · ${detail.material}` : '';
-          const color = detail?.colorName ? ` · ${detail.colorName}` : '';
-          return `${addOn.name}${material}${color}`;
-        })
-        .filter(Boolean),
+      addOns: addOnLabels,
       quantity: normalizedQuantity,
       isCustomSize: kioskSelections.size === 'custom',
       designFiles: kioskSelections.designFiles,
@@ -1300,6 +1304,7 @@ export default function CTBSAdminDashboard() {
         printMethod: kioskSelections.printMethod,
         printSize: kioskSelections.printSize,
         addOns: kioskSelections.addOns,
+        addOnDetails: kioskSelections.addOnDetails,
         quantity: normalizedQuantity,
         designFiles: kioskSelections.designFiles,
         specialInstructions: kioskSelections.specialInstructions,
@@ -1753,129 +1758,122 @@ export default function CTBSAdminDashboard() {
             <div>
               <WarningBanner />
               <div className="grid grid-cols-1 gap-2">
-                {selectedProduct?.addOns.map((addOn, idx) => (
-                  <button
-                    key={idx}
-                    onClick={() => {
-                      const newAddOns = kioskSelections.addOns.includes(idx)
-                        ? kioskSelections.addOns.filter((i) => i !== idx)
-                        : [...kioskSelections.addOns, idx];
-                      setKioskSelections({
-                        ...kioskSelections,
-                        addOns: newAddOns,
-                        addOnDetails: {
-                          ...(kioskSelections.addOnDetails || {}),
-                          [idx]: kioskSelections.addOnDetails?.[idx] || {},
-                        },
-                      });
-                    }}
-                    className={`p-3 rounded-xl border-2 text-left transition-all flex justify-between items-center hover:-translate-y-0.5 active:scale-[0.99] ${
-                      kioskSelections.addOns.includes(idx)
-                        ? 'border-blue-500 bg-blue-50'
-                        : 'border-gray-200 hover:border-gray-300'
-                    }`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <div
-                        className={`w-5 h-5 rounded border-2 flex items-center justify-center ${
-                          kioskSelections.addOns.includes(idx)
-                            ? 'bg-blue-500 border-blue-500'
-                            : 'border-gray-300'
+                {selectedProduct?.addOns.map((addOn, idx) => {
+                  const isSelected = kioskSelections.addOns.includes(idx);
+                  const detail = kioskSelections.addOnDetails?.[idx] || {};
+                  const hasVariations = (addOn.materials?.length || 0) > 0 || (addOn.colors?.length || 0) > 0;
+                  return (
+                    <div key={idx} className="space-y-2">
+                      <button
+                        onClick={() => {
+                          const newAddOns = isSelected
+                            ? kioskSelections.addOns.filter((i) => i !== idx)
+                            : [...kioskSelections.addOns, idx];
+                          setKioskSelections({
+                            ...kioskSelections,
+                            addOns: newAddOns,
+                            addOnDetails: {
+                              ...(kioskSelections.addOnDetails || {}),
+                              [idx]: kioskSelections.addOnDetails?.[idx] || {},
+                            },
+                          });
+                        }}
+                        className={`p-3 rounded-xl border-2 text-left transition-all flex justify-between items-center hover:-translate-y-0.5 active:scale-[0.99] ${
+                          isSelected ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'
                         }`}
                       >
-                        {kioskSelections.addOns.includes(idx) && (
-                          <Check size={14} className="text-white" />
-                        )}
-                      </div>
-                      <span className="font-medium text-sm">{addOn.name}</span>
-                    </div>
-
-                    <span className="text-blue-600 font-semibold text-sm">
-                      +₱{parseFloat(addOn.price).toLocaleString()}
-                    </span>
-                  </button>
-                ))}
-              </div>
-              {kioskSelections.addOns.map((addOnIdx) => {
-                const addOn = selectedProduct.addOns[addOnIdx];
-                if (!addOn) return null;
-                const detail = kioskSelections.addOnDetails?.[addOnIdx] || {};
-                return (
-                  <div key={`addon-detail-${addOnIdx}`} className="mt-3 p-3 border border-blue-100 rounded-lg bg-blue-50">
-                    <div className="flex flex-wrap gap-3 items-center mb-2">
-                      <span className="text-sm font-semibold text-blue-800">{addOn.name}</span>
-                    </div>
-                    <div className="flex flex-col gap-3 sm:flex-row sm:gap-4">
-                      {addOn.materials?.length > 0 && (
-                        <div className="flex-1 space-y-1">
-                          <label className="text-xs font-medium text-blue-800">Material</label>
-                          <select
-                            value={detail.material || ''}
-                            onChange={(e) =>
-                              setKioskSelections((prev) => ({
-                                ...prev,
-                                addOnDetails: {
-                                  ...(prev.addOnDetails || {}),
-                                  [addOnIdx]: {
-                                    ...(prev.addOnDetails?.[addOnIdx] || {}),
-                                    material: e.target.value,
-                                  },
-                                },
-                              }))
-                            }
-                            className="w-full px-3 py-2 border border-blue-200 rounded-lg focus:border-blue-500 focus:ring-0 text-sm bg-white"
+                        <div className="flex items-center gap-3">
+                          <div
+                            className={`w-5 h-5 rounded border-2 flex items-center justify-center ${
+                              isSelected ? 'bg-blue-500 border-blue-500' : 'border-gray-300'
+                            }`}
                           >
-                            <option value="">Select</option>
-                            {addOn.materials.map((mat, matIdx) => (
-                              <option key={matIdx} value={mat}>
-                                {mat || `Material ${matIdx + 1}`}
-                              </option>
-                            ))}
-                          </select>
+                            {isSelected && <Check size={14} className="text-white" />}
+                          </div>
+                          <span className="font-medium text-sm">{addOn.name}</span>
                         </div>
-                      )}
 
-                      {addOn.colors?.length > 0 && (
-                        <div className="flex-1 space-y-1">
-                          <label className="text-xs font-medium text-blue-800">Color</label>
-                          <div className="flex flex-wrap gap-2">
-                            {addOn.colors.map((color, cIdx) => (
-                              <button
-                                key={cIdx}
-                                onClick={(ev) => {
-                                  ev.preventDefault();
-                                  setKioskSelections((prev) => ({
-                                    ...prev,
-                                    addOnDetails: {
-                                      ...(prev.addOnDetails || {}),
-                                      [addOnIdx]: {
-                                        ...(prev.addOnDetails?.[addOnIdx] || {}),
-                                        color: color.hex,
-                                        colorName: color.name,
+                        <span className="text-blue-600 font-semibold text-sm">
+                          +₱{parseFloat(addOn.price).toLocaleString()}
+                        </span>
+                      </button>
+
+                      {isSelected && hasVariations && (
+                        <div className="p-3 border border-blue-100 rounded-lg bg-blue-50">
+                          <div className="flex flex-col gap-3 sm:flex-row sm:gap-4">
+                            {addOn.materials?.length > 0 && (
+                              <div className="flex-1 space-y-1">
+                                <label className="text-xs font-medium text-blue-800">Material</label>
+                                <select
+                                  value={detail.material || ''}
+                                  onChange={(e) =>
+                                    setKioskSelections((prev) => ({
+                                      ...prev,
+                                      addOnDetails: {
+                                        ...(prev.addOnDetails || {}),
+                                        [idx]: {
+                                          ...(prev.addOnDetails?.[idx] || {}),
+                                          material: e.target.value,
+                                        },
                                       },
-                                    },
-                                  }));
-                                }}
-                                className={`flex items-center gap-2 px-3 py-2 rounded-full border-2 text-xs transition-all hover:-translate-y-0.5 active:scale-[0.99] ${
-                                  detail.color === color.hex
-                                    ? 'border-blue-500 bg-blue-50'
-                                    : 'border-blue-100 hover:border-blue-200'
-                                }`}
-                              >
-                                <span
-                                  className="w-5 h-5 rounded-full border"
-                                  style={{ backgroundColor: color.hex }}
-                                />
-                                <span>{color.name}</span>
-                              </button>
-                            ))}
+                                    }))
+                                  }
+                                  className="w-full px-3 py-2 border border-blue-200 rounded-lg focus:border-blue-500 focus:ring-0 text-sm bg-white"
+                                >
+                                  <option value="">Select</option>
+                                  {addOn.materials.map((mat, matIdx) => (
+                                    <option key={matIdx} value={mat}>
+                                      {mat || `Material ${matIdx + 1}`}
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
+                            )}
+
+                            {addOn.colors?.length > 0 && (
+                              <div className="flex-1 space-y-1">
+                                <label className="text-xs font-medium text-blue-800">Color</label>
+                                <div className="flex flex-wrap gap-2">
+                                  {addOn.colors.map((color, cIdx) => (
+                                    <button
+                                      key={cIdx}
+                                      onClick={(ev) => {
+                                        ev.preventDefault();
+                                        setKioskSelections((prev) => ({
+                                          ...prev,
+                                          addOnDetails: {
+                                            ...(prev.addOnDetails || {}),
+                                            [idx]: {
+                                              ...(prev.addOnDetails?.[idx] || {}),
+                                              color: color.hex,
+                                              colorName: color.name,
+                                            },
+                                          },
+                                        }));
+                                      }}
+                                      className={`flex items-center gap-2 px-3 py-2 rounded-full border-2 text-xs transition-all hover:-translate-y-0.5 active:scale-[0.99] ${
+                                        detail.color === color.hex
+                                          ? 'border-blue-500 bg-blue-50'
+                                          : 'border-blue-100 hover:border-blue-200'
+                                      }`}
+                                    >
+                                      <span
+                                        className="w-5 h-5 rounded-full border"
+                                        style={{ backgroundColor: color.hex }}
+                                      />
+                                      <span>{color.name}</span>
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
                           </div>
                         </div>
                       )}
                     </div>
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
             </div>
           );
         case 'design':
@@ -2095,9 +2093,11 @@ export default function CTBSAdminDashboard() {
           ?.filter((_, idx) => kioskSelections.addOns.includes(idx))
           .map((a, idx) => {
             const detail = kioskSelections.addOnDetails?.[idx];
-            const material = detail?.material ? ` · ${detail.material}` : '';
-            const color = detail?.colorName ? ` · ${detail.colorName}` : '';
-            return `${a.name}${material}${color}`;
+            const extras = [];
+            if (detail?.material) extras.push(detail.material);
+            if (detail?.colorName) extras.push(detail.colorName);
+            const suffix = extras.length ? ` (${extras.join(', ')})` : '';
+            return `${a.name}${suffix}`;
           })
           .filter(Boolean) || [];
           const designNames = kioskSelections.designFiles.map((file) => file.name).filter(Boolean);
