@@ -25,6 +25,9 @@ export default async function handler(req, res) {
   try {
     const { summary, designFile, designFiles = [], customerName } = req.body;
 
+    // We may append a note to the summary if some files are skipped
+    let finalSummary = summary;
+
     // Validate required fields
     if (!customerName || !customerName.trim()) {
       return res.status(400).json({ error: 'Customer name is required' });
@@ -51,7 +54,7 @@ export default async function handler(req, res) {
         rich_text: [
           {
             text: {
-              content: summary.substring(0, 2000), // Notion has a 2000 char limit per text block
+              content: (finalSummary || '').substring(0, 2000), // Notion has a 2000 char limit per text block
             },
           },
         ],
@@ -73,25 +76,43 @@ export default async function handler(req, res) {
       allDesignFiles.push(designFile);
     }
 
-    const MAX_BYTES = 5 * 1024 * 1024;
+    const MAX_FILE_BYTES = 5 * 1024 * 1024;   // max per file
+    const MAX_TOTAL_BYTES = 5 * 1024 * 1024;  // max combined
     const MAX_URL_LENGTH = 1900; // Notion rejects external URLs longer than ~2000 chars
 
     const skippedDesignFiles = [];
+    let totalBytes = 0;
 
     for (const file of allDesignFiles) {
       if (!file?.data) continue;
+
       const reportedSize = Number(file.size) || 0;
       const base64Data = file.data.split(',')[1] || '';
       const estimatedBytes = Math.ceil((base64Data.length * 3) / 4);
       const effectiveSize = reportedSize || estimatedBytes;
-      if (effectiveSize > MAX_BYTES) {
-        return res.status(400).json({ error: `Design file "${file.name || 'File'}" exceeds 5MB limit` });
+
+      // Per-file hard limit
+      if (effectiveSize > MAX_FILE_BYTES) {
+        return res.status(400).json({
+          error: `Design file "${file.name || 'File'}" exceeds 5MB limit`,
+        });
       }
 
+      // Total limit across all design files
+      if (totalBytes + effectiveSize > MAX_TOTAL_BYTES) {
+        return res.status(400).json({
+          error: 'Total design files exceed 5MB limit. Please upload smaller or fewer files.',
+        });
+      }
+
+      totalBytes += effectiveSize;
+
+      // Guard against Notion rejecting extremely long URLs
       if ((file.data || '').length > MAX_URL_LENGTH) {
         skippedDesignFiles.push(file.name || 'Design File');
         continue;
       }
+
       designFilePayloads.push({
         type: 'external',
         name: file.name || 'Design File',
@@ -107,17 +128,12 @@ export default async function handler(req, res) {
       };
     }
 
+    // If some files were skipped only due to URL length, add a note to the summary
     if (skippedDesignFiles.length > 0) {
-      const note = `Design files not attached (too large for Notion URL limit): ${skippedDesignFiles.join(', ')}`;
-      properties['Design File Note'] = {
-        rich_text: [
-          {
-            text: {
-              content: note.substring(0, 2000),
-            },
-          },
-        ],
-      };
+      const note = `Design files not attached (too large for Notion URL limit): ${skippedDesignFiles.join(
+        ', '
+      )}`;
+      finalSummary = `${summary || ''}\n\n${note}`.substring(0, 2000);
     }
 
     // Create the page in Notion

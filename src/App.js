@@ -208,6 +208,7 @@ export default function CTBSAdminDashboard() {
   const [showGreeting, setShowGreeting] = useState(true);
   const [isGreetingClosing, setIsGreetingClosing] = useState(false);
   const [showConfirmation, setShowConfirmation] = useState(false);
+  const [designFileError, setDesignFileError] = useState('');
   const [isAdminAuthenticated, setIsAdminAuthenticated] = useState(false);
   const [adminPasswordInput, setAdminPasswordInput] = useState('');
   const [adminAuthError, setAdminAuthError] = useState('');
@@ -1119,7 +1120,13 @@ export default function CTBSAdminDashboard() {
     if (files.length === 0) return;
 
     const validTypes = ['application/pdf', 'image/png', 'image/jpeg'];
-    const maxSizeBytes = 5 * 1024 * 1024;
+    const MAX_TOTAL_BYTES = 5 * 1024 * 1024; // 5MB total (all files combined)
+
+    // Current total size of already-selected design files
+    const existingTotalBytes = (kioskSelections.designFiles || []).reduce(
+      (sum, file) => sum + (Number(file.size) || 0),
+      0
+    );
 
     const readFile = (file) =>
       new Promise((resolve, reject) => {
@@ -1136,28 +1143,55 @@ export default function CTBSAdminDashboard() {
         reader.readAsDataURL(file);
       });
 
+    let newTotalBytes = existingTotalBytes;
+    const processed = [];
+    const errorMessages = [];
+
     try {
-      const processed = [];
       for (const file of files) {
+        // Type check
         if (!validTypes.includes(file.type)) {
-          alert(`"${file.name}" is not a PDF, PNG, or JPEG.`);
+          errorMessages.push(`"${file.name}" is not a PDF, PNG, or JPEG.`);
           continue;
         }
-        if (file.size > maxSizeBytes) {
-          alert(`"${file.name}" is too large. Please upload files up to 5MB each.`);
+
+        const fileSize = Number(file.size) || 0;
+
+        // If a single file is already bigger than 5MB, reject immediately
+        if (fileSize > MAX_TOTAL_BYTES) {
+          errorMessages.push(
+            `"${file.name}" is too large. Each file must be 5MB or smaller.`
+          );
           continue;
         }
+
+        // Check combined total (already selected + this file)
+        if (newTotalBytes + fileSize > MAX_TOTAL_BYTES) {
+          errorMessages.push(
+            `Total design files must not exceed 5MB. "${file.name}" would push the total over the limit.`
+          );
+          continue;
+        }
+
         const parsed = await readFile(file);
         processed.push(parsed);
+        newTotalBytes += fileSize;
       }
 
       if (processed.length > 0) {
         setKioskSelections((prev) => ({
           ...prev,
-          designFiles: [...prev.designFiles, ...processed],
+          designFiles: [...(prev.designFiles || []), ...processed],
         }));
+        // Clear error only if we managed to add something
+        setDesignFileError('');
+      }
+
+      if (errorMessages.length > 0) {
+        setDesignFileError(errorMessages.join(' '));
       }
     } finally {
+      // Reset input so the same file can be re-selected if needed
       e.target.value = '';
     }
   };
@@ -1714,6 +1748,7 @@ export default function CTBSAdminDashboard() {
         case 'design':
           return (
             <div>
+              {/* Info note */}
               <div className="flex items-start gap-2 mb-3 rounded-lg border border-blue-200 bg-blue-50 text-blue-800 px-3 py-2 text-sm">
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
@@ -1729,9 +1764,35 @@ export default function CTBSAdminDashboard() {
                     d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
                   />
                 </svg>
-                <span>Skip this if you are ordering a plain bag or if your design is not yet ready.</span>
+                <span>
+                  Skip this if you are ordering a plain bag or if your design is not yet ready.
+                </span>
               </div>
+
+              {/* Step required warning (if design is marked required) */}
               <WarningBanner />
+
+              {/* File size / validation error banner */}
+              {designFileError && (
+                <div className="flex items-start gap-2 mb-3 rounded-lg border border-red-200 bg-red-50 text-red-800 px-3 py-2 text-sm">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="h-5 w-5 mt-0.5 flex-shrink-0"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                    />
+                  </svg>
+                  <span>{designFileError}</span>
+                </div>
+              )}
+
               <div className="border-2 border-dashed border-gray-300 rounded-xl p-5 text-center hover:border-blue-500 transition-colors">
                 <input
                   type="file"
@@ -1748,10 +1809,11 @@ export default function CTBSAdminDashboard() {
                       Click to upload design files
                     </p>
                     <p className="text-xs text-gray-500">
-                      PDF, PNG, or JPEG · Max 5MB each · Multiple files allowed
+                      PDF, PNG, or JPEG · Max <span className="font-semibold">5MB total</span> · Multiple files allowed
                     </p>
                   </div>
                 </label>
+
                 {kioskSelections.designFiles.length > 0 && (
                   <div className="mt-4 flex flex-wrap gap-2 justify-center">
                     {kioskSelections.designFiles.map((file, idx) => (
