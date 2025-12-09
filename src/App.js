@@ -1763,7 +1763,7 @@ export default function CTBSAdminDashboard() {
                   const detail = kioskSelections.addOnDetails?.[idx] || {};
                   const hasVariations = (addOn.materials?.length || 0) > 0 || (addOn.colors?.length || 0) > 0;
                   return (
-                    <div key={idx} className="space-y-2">
+                    <div key={idx} className="space-y-2 w-full">
                       <button
                         onClick={() => {
                           const newAddOns = isSelected
@@ -1778,7 +1778,7 @@ export default function CTBSAdminDashboard() {
                             },
                           });
                         }}
-                        className={`p-3 rounded-xl border-2 text-left transition-all flex justify-between items-center hover:-translate-y-0.5 active:scale-[0.99] ${
+                        className={`p-3 rounded-xl border-2 text-left transition-all flex justify-between items-center hover:-translate-y-0.5 active:scale-[0.99] w-full ${
                           isSelected ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'
                         }`}
                       >
@@ -2394,7 +2394,7 @@ export default function CTBSAdminDashboard() {
               {products.map((product) => (
                 <div
                   key={product.id}
-                  className="bg-white rounded-xl shadow-md overflow-hidden hover:shadow-lg transition-all duration-200 cursor-pointer group hover:-translate-y-1 active:scale-[0.99]"
+                  className="bg-white rounded-xl shadow-md overflow-hidden hover:shadow-lg transition-all duration-200 cursor-pointer group hover:-translate-y-1 active:scale-[0.99] relative"
                   onClick={() => openKioskCustomize(product)}
                 >
                   <div className="aspect-square bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center overflow-hidden">
@@ -2418,6 +2418,18 @@ export default function CTBSAdminDashboard() {
                     <h3 className="text-base font-normal text-[#465262]">
                       {product.name}
                     </h3>
+                  </div>
+
+                  <div className="absolute bottom-3 right-3 flex items-center gap-1 bg-[#0167FF] text-white px-2 py-1 rounded-full text-xs font-semibold shadow-md">
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      viewBox="0 0 640 640"
+                      className="w-3.5 h-3.5 fill-current"
+                      aria-hidden="true"
+                    >
+                      <path d="M320 576C461.4 576 576 461.4 576 320C576 178.6 461.4 64 320 64C178.6 64 64 178.6 64 320C64 461.4 178.6 576 320 576zM296 408L296 344L232 344C218.7 344 208 333.3 208 320C208 306.7 218.7 296 232 296L296 296L296 232C296 218.7 306.7 208 320 208C333.3 208 344 218.7 344 232L344 296L408 296C421.3 296 432 306.7 432 320C432 333.3 421.3 344 408 344L344 344L344 408C344 421.3 333.3 432 320 432C306.7 432 296 421.3 296 408z" />
+                    </svg>
+                    <span>Add</span>
                   </div>
                 </div>
               ))}
