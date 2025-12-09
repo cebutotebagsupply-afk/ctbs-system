@@ -454,6 +454,26 @@ export default function CTBSAdminDashboard() {
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
+    if (!logo) {
+      const savedLogo = localStorage.getItem('ctbs-logo');
+      if (savedLogo) setLogo(savedLogo);
+    }
+  }, [currentView, logo]);
+
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    if (showConfirmation) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [showConfirmation]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
     const storedAuth = localStorage.getItem('ctbs-admin-authenticated');
     if (storedAuth === 'true') {
       setIsAdminAuthenticated(true);
@@ -2053,7 +2073,7 @@ export default function CTBSAdminDashboard() {
 
   const renderKiosk = (embedded = false, withPublish = false) => {
     const shell = (
-      <div className="w-full max-w-[420px] min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 text-sm relative overflow-hidden">
+      <div className="w-full max-w-[420px] min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 text-sm relative overflow-hidden overflow-x-hidden">
         {showGreeting && currentView === 'kiosk' && (
           <div
             className={`fixed inset-0 z-50 flex flex-col items-center justify-center px-6 text-white bg-[#0167FF] transition-transform duration-500 ${
@@ -2089,17 +2109,20 @@ export default function CTBSAdminDashboard() {
         <div className="bg-white shadow-sm">
           <div className="px-4 py-4 flex justify-between items-center">
             <div className="flex items-center gap-3">
-              {logo ? (
-                <img
-                  src={logo}
-                  alt="Logo"
-                  className="h-10 object-contain"
-                />
-              ) : (
-                <h1 className="text-xl font-bold text-gray-800">
-                  Custom Tote Bags
-                </h1>
-              )}
+              {(() => {
+                const displayLogo = logo || '/logo.svg';
+                return displayLogo ? (
+                  <img
+                    src={displayLogo}
+                    alt="Logo"
+                    className="h-10 object-contain max-w-[140px]"
+                  />
+                ) : (
+                  <h1 className="text-xl font-bold text-gray-800">
+                    Custom Tote Bags
+                  </h1>
+                );
+              })()}
             </div>
             <div className="flex items-center gap-2">
               {withPublish && (
@@ -2200,22 +2223,29 @@ export default function CTBSAdminDashboard() {
         {showCustomizeModal && renderKioskCustomizeModal()}
 
         {showConfirmation && currentView === 'kiosk' && (
-          <div className="fixed inset-0 bg-[#0167FF] flex items-center justify-center z-50 px-6 text-center text-white">
-            <div className="space-y-4 max-w-md" style={{ animation: 'fadeIn 0.35s ease' }}>
+          <div className="fixed inset-0 bg-[#0167FF] flex items-center justify-center z-50 px-6 text-center text-white overflow-hidden">
+            <div className="space-y-3 max-w-md w-full" style={{ animation: 'fadeIn 0.35s ease' }}>
               <img
                 src="https://media.giphy.com/media/v1.Y2lkPWVjZjA1ZTQ3c2htbXUxZGF6eXlndzdocGs2YWxra3lqbWF4b2s5N3doYTA3MmZrNiZlcD12MV9naWZzX3RyZW5kaW5nJmN0PWc/bznNJlqAi4pBC/giphy.gif"
                 alt="Celebration"
                 className="w-40 h-40 mx-auto rounded-[20px] object-cover shadow-lg border-4 border-white/50"
               />
-              <h2 className="text-2xl font-bold">Success! We received your order</h2>
+              <div className="space-y-1">
+                <h2 className="text-3xl font-bold">Success!</h2>
+                <p className="text-lg text-white/90">We received your order.</p>
+              </div>
               <p className="text-lg text-white/90">
-                We are excited to celebrate with you 💙
+                We are excited to celebrate with you
               </p>
               <p className="text-sm text-white/80">
-                We’ll reach out to you on Messenger soon to confirm the details and next steps.
+                We’ll reach out to you on Messenger soon to confirm the details and the next steps.
               </p>
               <button
-                onClick={() => setShowConfirmation(false)}
+                onClick={() => {
+                  setShowConfirmation(false);
+                  setShowCart(false);
+                  setShowCheckout(false);
+                }}
                 className="mt-2 px-5 py-2 rounded-full bg-white text-[#0167FF] font-semibold hover:bg-white/90 transition"
               >
                 Back to kiosk
