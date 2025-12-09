@@ -130,9 +130,7 @@ export default async function handler(req, res) {
 
     // If some files were skipped only due to URL length, add a note to the summary
     if (skippedDesignFiles.length > 0) {
-      const note = `Design files not attached (too large for Notion URL limit): ${skippedDesignFiles.join(
-        ', '
-      )}`;
+      const note = `Design files not attached (too large for Notion URL limit): ${skippedDesignFiles.join(', ')}`;
       finalSummary = `${summary || ''}\n\n${note}`.substring(0, 2000);
     }
 
