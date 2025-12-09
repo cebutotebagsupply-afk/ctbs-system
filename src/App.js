@@ -464,11 +464,14 @@ export default function CTBSAdminDashboard() {
     if (typeof document === 'undefined') return;
     if (showConfirmation) {
       document.body.style.overflow = 'hidden';
+      document.documentElement.style.overflow = 'hidden';
     } else {
       document.body.style.overflow = '';
+      document.documentElement.style.overflow = '';
     }
     return () => {
       document.body.style.overflow = '';
+      document.documentElement.style.overflow = '';
     };
   }, [showConfirmation]);
 
@@ -2084,11 +2087,11 @@ export default function CTBSAdminDashboard() {
             tabIndex={0}
           >
             <div className="pointer-events-none mb-6">
-              <div className="h-44 w-44 rounded-full bg-white/10 border border-white/20 flex items-center justify-center shadow-lg backdrop-blur">
+              <div className="h-44 w-44 rounded-full bg-white/10 border border-white/20 flex items-center justify-center shadow-lg backdrop-blur overflow-hidden">
                 <img
                   src="https://res.cloudinary.com/dvlwr8kro/image/upload/v1765252313/f5836tbpb8tzf0n5jndr.svg"
                   alt="Welcome illustration"
-                  className="h-28 w-28 object-contain"
+                  className="h-44 w-44 object-contain"
                 />
               </div>
             </div>
@@ -2110,7 +2113,7 @@ export default function CTBSAdminDashboard() {
           <div className="px-4 py-4 flex justify-between items-center">
             <div className="flex items-center gap-3">
               {(() => {
-                const displayLogo = logo || '/logo.svg';
+                const displayLogo = logo || 'https://res.cloudinary.com/dvlwr8kro/image/upload/v1764872415/sftypphytuctr84kinur.svg';
                 return displayLogo ? (
                   <img
                     src={displayLogo}
@@ -2223,22 +2226,17 @@ export default function CTBSAdminDashboard() {
         {showCustomizeModal && renderKioskCustomizeModal()}
 
         {showConfirmation && currentView === 'kiosk' && (
-          <div className="fixed inset-0 bg-[#0167FF] flex items-center justify-center z-50 px-6 text-center text-white overflow-hidden">
-            <div className="space-y-3 max-w-md w-full" style={{ animation: 'fadeIn 0.35s ease' }}>
+          <div className="fixed inset-0 bg-[#0167FF] flex items-center justify-center z-50 px-6 text-center text-white overflow-hidden overflow-x-hidden">
+            <div className="space-y-4 max-w-md w-full mx-auto overflow-x-hidden" style={{ animation: 'fadeIn 0.35s ease' }}>
               <img
-                src="https://media.giphy.com/media/v1.Y2lkPWVjZjA1ZTQ3c2htbXUxZGF6eXlndzdocGs2YWxra3lqbWF4b2s5N3doYTA3MmZrNiZlcD12MV9naWZzX3RyZW5kaW5nJmN0PWc/bznNJlqAi4pBC/giphy.gif"
+                src="https://res.cloudinary.com/dvlwr8kro/image/upload/v1765254453/o82pe13njmvhnd5uwcj5.gif"
                 alt="Celebration"
-                className="w-40 h-40 mx-auto rounded-[20px] object-cover shadow-lg border-4 border-white/50"
+                className="w-40 h-40 mx-auto max-w-full rounded-[20px] object-cover shadow-lg border-4 border-white/50"
               />
-              <div className="space-y-1">
-                <h2 className="text-3xl font-bold">Success!</h2>
-                <p className="text-lg text-white/90">We received your order.</p>
-              </div>
-              <p className="text-lg text-white/90">
-                We are excited to celebrate with you
-              </p>
-              <p className="text-sm text-white/80">
-                We’ll reach out to you on Messenger soon to confirm the details and the next steps.
+              <h2 className="text-3xl font-bold">Success! Your order is in. 🎉</h2>
+              <p className="text-base text-white/90 leading-relaxed">
+                We’re excited to work with you!<br />
+                Expect a message from us on Messenger soon so we can review your order and confirm everything.
               </p>
               <button
                 onClick={() => {
@@ -2248,7 +2246,7 @@ export default function CTBSAdminDashboard() {
                 }}
                 className="mt-2 px-5 py-2 rounded-full bg-white text-[#0167FF] font-semibold hover:bg-white/90 transition"
               >
-                Back to kiosk
+                Order Again
               </button>
             </div>
           </div>
