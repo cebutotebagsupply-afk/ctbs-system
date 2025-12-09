@@ -2237,8 +2237,8 @@ export default function CTBSAdminDashboard() {
                 className="w-40 h-40 mx-auto max-w-full rounded-[20px] object-cover shadow-lg border-4 border-white/50"
               />
               <h2 className="text-3xl font-bold leading-tight" style={{ lineHeight: '1.1' }}>
-                Success!<br />
-                Your order is in. 🎉
+                Success 🎉<br />
+                Your order is in.
               </h2>
               <p className="text-base text-white/90" style={{ lineHeight: '1.2' }}>
                 We’re excited to work with you!<br />
