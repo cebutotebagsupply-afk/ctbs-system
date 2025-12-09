@@ -210,7 +210,7 @@ export default function CTBSAdminDashboard() {
   const [isGreetingClosing, setIsGreetingClosing] = useState(false);
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [designFileError, setDesignFileError] = useState('');
-  const AddIcon = ({ className = 'w-4 h-4' }) => (
+  const AddIcon = ({ className = 'w-[15px] h-[15px]' }) => (
     <svg
       xmlns="http://www.w3.org/2000/svg"
       viewBox="0 0 640 640"
@@ -1721,7 +1721,7 @@ export default function CTBSAdminDashboard() {
                           : 'border-gray-200 hover:border-gray-300'
                       }`}
                     >
-                      <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-center justify-between gap-2">
                         <div className="flex-1">
                           <span className="font-medium text-sm">{method.name}</span>
                           {method.printSizes && method.printSizes.length > 0 && (
@@ -1731,7 +1731,7 @@ export default function CTBSAdminDashboard() {
                           )}
                         </div>
                         <div className="w-7 h-7 bg-white border border-[#0167FF] text-[#0167FF] rounded-full flex items-center justify-center">
-                          <AddIcon className="w-3.5 h-3.5 fill-current" />
+                          <AddIcon className="w-[15px] h-[15px] fill-current" />
                         </div>
                       </div>
                     </button>
@@ -1816,7 +1816,7 @@ export default function CTBSAdminDashboard() {
                             +₱{parseFloat(addOn.price).toLocaleString()}
                           </span>
                           <div className="w-7 h-7 bg-white border border-[#0167FF] text-[#0167FF] rounded-full flex items-center justify-center">
-                            <AddIcon className="w-3.5 h-3.5 fill-current" />
+                            <AddIcon className="w-[15px] h-[15px] fill-current" />
                           </div>
                         </div>
                       </button>
@@ -2444,7 +2444,7 @@ export default function CTBSAdminDashboard() {
                   </div>
 
                   <div className="absolute bottom-3 right-3 flex items-center justify-center w-8 h-8 rounded-full shadow-md bg-white border border-[#0167FF] text-[#0167FF]">
-                    <AddIcon className="w-3.5 h-3.5 fill-current" />
+                    <AddIcon className="w-[15px] h-[15px] fill-current" />
                   </div>
                 </div>
               ))}
