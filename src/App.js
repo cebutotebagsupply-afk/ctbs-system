@@ -3951,7 +3951,7 @@ export default function CTBSAdminDashboard() {
 
   return (
     <>
-      <style>{`* { font-family: Helvetica, Arial, sans-serif; } html, body { overflow-x: hidden; } @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } } @keyframes fadeOut { from { opacity: 1; transform: translateY(0); } to { opacity: 0; transform: translateY(6px); } }`}</style>
+      <style>{`* { font-family: Helvetica, Arial, sans-serif; } html, body, #root { overflow-x: hidden; max-width: 100vw; width: 100%; } @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } } @keyframes fadeOut { from { opacity: 1; transform: translateY(0); } to { opacity: 0; transform: translateY(6px); } }`}</style>
       {currentView === 'admin' ? renderAdmin() : renderKiosk()}
     </>
   );
