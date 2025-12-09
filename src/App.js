@@ -2090,8 +2090,8 @@ export default function CTBSAdminDashboard() {
               <div className="h-44 w-44 rounded-full bg-white/10 border border-white/20 flex items-center justify-center shadow-lg backdrop-blur overflow-hidden">
                 <img
                   src="https://res.cloudinary.com/dvlwr8kro/image/upload/v1765252313/f5836tbpb8tzf0n5jndr.svg"
-                  alt="Welcome illustration"
-                  className="h-44 w-44 object-contain"
+                  alt="CTBS Logo"
+                  className="h-auto w-full max-w-[100px] object-contain"
                 />
               </div>
             </div>
@@ -2223,17 +2223,6 @@ export default function CTBSAdminDashboard() {
           )}
         </div>
 
-        <div className="px-4 pb-6">
-          <div className="mx-auto w-full max-w-[320px] flex items-center justify-center gap-2 text-xs text-gray-500">
-            <img
-              src="https://res.cloudinary.com/dvlwr8kro/image/upload/v1765252313/f5836tbpb8tzf0n5jndr.svg"
-              alt="Footer logo"
-              className="h-auto max-w-[15px] object-contain"
-            />
-            <span>Cebu Tote Bag Supply</span>
-          </div>
-        </div>
-
         {showCustomizeModal && renderKioskCustomizeModal()}
 
         {showConfirmation && currentView === 'kiosk' && (
@@ -2262,6 +2251,13 @@ export default function CTBSAdminDashboard() {
               >
                 Order Again
               </button>
+              <div className="flex items-center justify-center">
+                <img
+                  src="https://res.cloudinary.com/dvlwr8kro/image/upload/v1765252313/f5836tbpb8tzf0n5jndr.svg"
+                  alt="CTBS Logo"
+                  className="h-auto max-w-[15px] object-contain"
+                />
+              </div>
             </div>
           </div>
         )}
