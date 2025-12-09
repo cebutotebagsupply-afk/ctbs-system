@@ -2226,14 +2226,17 @@ export default function CTBSAdminDashboard() {
         {showCustomizeModal && renderKioskCustomizeModal()}
 
         {showConfirmation && currentView === 'kiosk' && (
-          <div className="fixed inset-0 bg-[#0167FF] flex items-center justify-center z-50 px-6 text-center text-white overflow-hidden overflow-x-hidden">
-            <div className="space-y-4 max-w-md w-full mx-auto overflow-x-hidden" style={{ animation: 'fadeIn 0.35s ease' }}>
+          <div className="fixed inset-0 bg-[#0167FF] flex items-center justify-center z-50 p-10 text-center text-white overflow-hidden overflow-x-hidden">
+            <div
+              className="space-y-4 max-w-md w-full mx-auto overflow-x-hidden flex flex-col items-center"
+              style={{ animation: 'fadeIn 0.35s ease' }}
+            >
               <img
                 src="https://res.cloudinary.com/dvlwr8kro/image/upload/v1765254453/o82pe13njmvhnd5uwcj5.gif"
                 alt="Celebration"
                 className="w-40 h-40 mx-auto max-w-full rounded-[20px] object-cover shadow-lg border-4 border-white/50"
               />
-              <h2 className="text-3xl font-bold leading-tight">
+              <h2 className="text-3xl font-bold leading-tight" style={{ lineHeight: '1.1' }}>
                 Success!<br />
                 Your order is in. 🎉
               </h2>
@@ -2251,13 +2254,11 @@ export default function CTBSAdminDashboard() {
               >
                 Order Again
               </button>
-              <div className="flex items-center justify-center">
-                <img
-                  src="https://res.cloudinary.com/dvlwr8kro/image/upload/v1765252313/f5836tbpb8tzf0n5jndr.svg"
-                  alt="CTBS Logo"
-                  className="h-auto max-w-[15px] object-contain"
-                />
-              </div>
+              <img
+                src="https://res.cloudinary.com/dvlwr8kro/image/upload/v1765252313/f5836tbpb8tzf0n5jndr.svg"
+                alt="CTBS Logo"
+                className="h-auto max-w-[30px] object-contain mt-6"
+              />
             </div>
           </div>
         )}
